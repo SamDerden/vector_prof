@@ -53,6 +53,42 @@ export function browserSessionId(scope: SessionScope): string {
   return readOrCreateSessionId(scope, browserStorage(scope));
 }
 
+/**
+ * Make an account-owned session active on this device.
+ *
+ * `X-Session-ID` is only a locator: the backend grants read/write access to an
+ * account-owned session solely when the auth cookie belongs to its owner. This
+ * helper therefore never claims ownership; it just points this browser at the
+ * chosen session and switches the UI scope to "own".
+ */
+export function adoptOwnSessionId(
+  id: string,
+  options: { grade?: number | null } = {}
+): void {
+  const value = id.trim().toLowerCase();
+  if (!UUID_PATTERN.test(value)) throw new Error("Session id must be a UUID");
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(sessionStorageKey({ mode: "own" }), value);
+  let context: Record<string, unknown> = {};
+  try {
+    const raw = window.sessionStorage.getItem("vector-active-context");
+    const parsed = raw ? JSON.parse(raw) : null;
+    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) context = parsed as Record<string, unknown>;
+  } catch {
+    context = {};
+  }
+  const grade = Number(options.grade);
+  const nextGrade = Number.isInteger(grade) && grade >= 1 && grade <= 11 ? grade : Number(context.grade);
+  window.sessionStorage.setItem(
+    "vector-active-context",
+    JSON.stringify({
+      ...context,
+      mode: "own",
+      grade: Number.isInteger(nextGrade) && nextGrade >= 1 && nextGrade <= 11 ? nextGrade : 7,
+    })
+  );
+}
+
 export function generationSessionScope(input: { dossier?: { studentId: number } }): SessionScope {
   return input.dossier
     ? { mode: "demo", studentId: input.dossier.studentId }

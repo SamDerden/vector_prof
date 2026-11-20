@@ -6,3 +6,7 @@ node_modules/
 /test-results/
 /playwright-report/
 /e2e/logs/
+
+# Локальные артефакты для скачивания (собираются из исходников)
+/downloads/
+/personal-cabinet-vector.zip
