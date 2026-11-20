@@ -1,10 +1,18 @@
 import { chromium } from 'playwright';
 import { mkdir, writeFile } from 'node:fs/promises';
 const base = process.env.TEST_BASE_URL || 'http://127.0.0.1:3001';
+// The personal cabinet is a separate route and must pass the same overflow check.
+const accountPath = process.env.TEST_ACCOUNT_PATH || '/account';
 const sizes = [320, 375, 390, 430, 768, 1024, 1280, 1440, 1920, 2560];
 const failures = [];
 await mkdir('test-results/responsive', { recursive: true });
 const browser = await chromium.launch({ headless: true });
+async function measure(page) {
+  return page.evaluate(() => ({
+    viewport: document.documentElement.clientWidth,
+    scroll: document.documentElement.scrollWidth,
+  }));
+}
 for (const width of sizes) {
   const page = await browser.newPage({ viewport: { width, height: 900 }, deviceScaleFactor: 1 });
   const errors = [];
@@ -34,6 +42,16 @@ for (const width of sizes) {
       await nav.click({ timeout: 3000 }).catch(() => {});
       await page.screenshot({ path: 'test-results/responsive/after-navigation-' + width + '.png', fullPage: true });
     }
+
+    const account = await page.goto(base.replace(/\/$/, '') + accountPath, { waitUntil: 'networkidle', timeout: 30000 });
+    if (!account?.ok()) failures.push(width + ': account HTTP ' + account?.status());
+    await page.screenshot({ path: 'test-results/responsive/account-' + width + '.png', fullPage: true });
+    const accountDimensions = await measure(page);
+    if (accountDimensions.scroll > accountDimensions.viewport + 3) {
+      failures.push(width + ': account horizontal scroll ' + JSON.stringify(accountDimensions));
+    }
+    const forms = await page.locator('.account-shell input:visible').count();
+    if (forms === 0) failures.push(width + ': account has no visible form field');
   } catch (error) {
     failures.push(width + ': ' + error.message);
   } finally {
