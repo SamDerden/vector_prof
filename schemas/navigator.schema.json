@@ -1,0 +1,671 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.org/navigator/data-freeze-1.schema.json",
+  "title": "Navigator Sverdlovsk Oblast Data Freeze 1 export",
+  "type": "object",
+  "required": [
+    "meta",
+    "industries",
+    "skills",
+    "organizations",
+    "professions",
+    "trials",
+    "education_programs",
+    "profession_first_steps",
+    "self_guided_steps"
+  ],
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": [
+        "dataset",
+        "version",
+        "counts"
+      ],
+      "additionalProperties": true
+    },
+    "industries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "industry_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "industry_id",
+          "name"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "skills": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "skill_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "matching_prevalence_weight": {
+            "type": [
+              "number",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "skill_id",
+          "name"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "organizations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "organization_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "municipality": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "organization_id",
+          "name"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "professions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "profession_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "industry_id": {
+            "type": "string"
+          },
+          "industry_name": {
+            "type": "string"
+          },
+          "what_does_kid": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description_1_4": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description_5_8": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "description_9_11": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "riasec": {
+            "type": "object",
+            "properties": {
+              "R": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "I": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "A": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "S": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "E": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              },
+              "C": {
+                "type": "number",
+                "minimum": 0,
+                "maximum": 1
+              }
+            },
+            "required": [
+              "R",
+              "I",
+              "A",
+              "S",
+              "E",
+              "C"
+            ],
+            "additionalProperties": true
+          },
+          "current_market_state": {
+            "type": "object",
+            "properties": {
+              "demand_level_region": {
+                "type": [
+                  "string",
+                  "null"
+                ]
+              },
+              "salary_median_region": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "vacancies_count": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "quality": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "demand_level_region",
+              "salary_median_region",
+              "vacancies_count",
+              "quality"
+            ],
+            "additionalProperties": true
+          },
+          "vacancy_history": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "profession_id": {
+                  "type": "string"
+                },
+                "date": {
+                  "type": "string"
+                },
+                "vacancies_count": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "salary_median": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "source_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "profession_id",
+                "date",
+                "vacancies_count",
+                "salary_median",
+                "source_id"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "skill_id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string"
+                },
+                "importance": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "relation_type": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "matching_eligible": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "matching_weight": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "applicability_condition": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "skill_id",
+                "name",
+                "type",
+                "importance",
+                "relation_type",
+                "matching_eligible",
+                "matching_weight",
+                "applicability_condition"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "programs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "program_id": {
+                  "type": "string"
+                },
+                "name": {
+                  "type": "string"
+                },
+                "level": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "fit_level": {
+                  "type": "string"
+                },
+                "organization_id": {
+                  "type": "string"
+                },
+                "organization_name": {
+                  "type": "string"
+                },
+                "municipality": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "specialty_code": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "duration_years": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "program_id",
+                "name",
+                "level",
+                "fit_level",
+                "organization_id",
+                "organization_name",
+                "municipality",
+                "specialty_code",
+                "duration_years"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "trials": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "trial_id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "format": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "cost": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "age_min": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "age_max": {
+                  "type": [
+                    "number",
+                    "null"
+                  ]
+                },
+                "municipality": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "organization_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "organization_name": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "skills_checked": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "connection_type": {
+                  "type": "string"
+                },
+                "activity_type": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "availability_status": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "source_url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "trial_id",
+                "title",
+                "format",
+                "cost",
+                "age_min",
+                "age_max",
+                "municipality",
+                "organization_id",
+                "organization_name",
+                "skills_checked",
+                "connection_type",
+                "activity_type",
+                "availability_status",
+                "source_url"
+              ],
+              "additionalProperties": true
+            }
+          },
+          "first_steps": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "step_id": {
+                  "type": "string"
+                },
+                "title": {
+                  "type": "string"
+                },
+                "grade_5_8_task": {
+                  "type": "string"
+                },
+                "grade_9_11_task": {
+                  "type": "string"
+                },
+                "result_artifact": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "materials": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "safety_rule": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "content_origin": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "verified_educational_resource_url": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "related_existing_trial_id": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "existing_trial_connection": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                }
+              },
+              "required": [
+                "step_id",
+                "title",
+                "grade_5_8_task",
+                "grade_9_11_task",
+                "result_artifact",
+                "materials",
+                "safety_rule",
+                "content_origin",
+                "verified_educational_resource_url",
+                "related_existing_trial_id",
+                "existing_trial_connection"
+              ],
+              "additionalProperties": true
+            }
+          }
+        },
+        "required": [
+          "profession_id",
+          "name",
+          "industry_id",
+          "industry_name",
+          "what_does_kid",
+          "description_1_4",
+          "description_5_8",
+          "description_9_11",
+          "riasec",
+          "current_market_state",
+          "vacancy_history",
+          "skills",
+          "programs",
+          "trials",
+          "first_steps"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "trials": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "trial_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "organization_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "municipality": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "trial_id",
+          "title"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "education_programs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "program_id": {
+            "type": "string"
+          },
+          "organization_id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "level": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "program_id",
+          "organization_id",
+          "name"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "profession_first_steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "profession_id": {
+            "type": "string"
+          },
+          "step_id": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "profession_id",
+          "step_id"
+        ],
+        "additionalProperties": true
+      }
+    },
+    "self_guided_steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "step_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "step_id",
+          "title"
+        ],
+        "additionalProperties": true
+      }
+    }
+  },
+  "additionalProperties": false
+}
