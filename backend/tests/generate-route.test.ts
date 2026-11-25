@@ -40,7 +40,7 @@ function result(rows: Array<Record<string, unknown>>): DbQueryResult {
   return { rowCount: rows.length, rows };
 }
 
-function createHarness(sessions: Record<string, SessionFixture>) {
+function createHarness(sessions: Record<string, SessionFixture>, options: { emptyProfessions?: boolean } = {}) {
   const calls: Array<{ sql: string; params: unknown[] }> = [];
   const inserts: unknown[][] = [];
   let pipelineCalls = 0;
@@ -67,7 +67,7 @@ function createHarness(sessions: Record<string, SessionFixture>) {
       }]);
     }
     if (sql.includes("FROM professions")) {
-      return result(professions);
+      return result(options.emptyProfessions ? [] : professions);
     }
     if (sql.includes("FROM education_programs")) {
       return result([
@@ -744,4 +744,31 @@ test("generation binds stored clarifications to the selected diagnostic", async 
     assert.match(read.sql, /c\.diagnostic_id = \$2/);
     assert.deepEqual(read.params, [SESSION_A, `diagnostic-${SESSION_A}`]);
   }
+});
+
+test("an empty professions table uses freeze ids and does not return 503", async () => {
+  const harness = createHarness({
+    [SESSION_A]: {
+      grade: 8,
+      municipality: "Первоуральск",
+      diagnostic: [{
+        questionId: "bilet_q1",
+        answer: ["техника"],
+        questionnaire: "Билет в будущее (8 класс)",
+      }],
+    },
+  }, { emptyProfessions: true });
+
+  const outcome = await executeGenerate({
+    sessionId: SESSION_A,
+    body: {},
+    deps: harness.deps,
+  });
+
+  assert.equal(outcome.ok, true);
+  if (!outcome.ok) return;
+  const hypotheses = outcome.body.hypotheses as Array<Record<string, unknown>>;
+  assert.equal(hypotheses.length, 1);
+  assert.equal(hypotheses[0].professionId, "prof_004");
+  assert.equal(JSON.stringify(outcome.body).includes(ENERGY_ID), false);
 });

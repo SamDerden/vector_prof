@@ -61,4 +61,16 @@ test("EmbeddingsGigaR index covers the legacy snapshot and not the 152-professio
     decision: { action: "refuse", reason: "model unset" },
   }), "incomplete-lexical");
   assert.equal(embeddingStartupPlan({ origin: "legacy_normalized", decision }), "rebuild-legacy");
+  assert.equal(embeddingStartupPlan({
+    origin: "data_freeze_1",
+    decision: { action: "use", model: "EmbeddingsGigaR", field: "embedding_model", entries: 1, dimensions: 2560, reason: "match" },
+    vectorSource: "mock",
+    professionCount: 152,
+  }), "incomplete-lexical");
+  assert.equal(embeddingStartupPlan({
+    origin: "data_freeze_1",
+    decision: { action: "use", model: "EmbeddingsGigaR", field: "embedding_model", entries: 1, dimensions: 2560, reason: "match" },
+    vectorSource: "provider",
+    professionCount: 152,
+  }), "use");
 });

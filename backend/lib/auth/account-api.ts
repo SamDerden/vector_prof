@@ -2,6 +2,8 @@ import { createHash, randomBytes, randomInt, scrypt as scryptCallback, timingSaf
 
 import { NextRequest, NextResponse } from "next/server";
 
+import { productionDeliveryReady } from "./email-delivery.ts";
+
 const SCRYPT_N = 16384;
 
 function scryptKey(password: string, salt: Buffer, keylen: number, params: { N: number; r: number; p: number }) {
@@ -260,7 +262,11 @@ export function createAccountApi(deps: Deps) {
       attempts: 0,
       consumedAt: null,
     });
-    await deliver(email, purpose, code);
+    try {
+      await deliver(email, purpose, code);
+    } catch (error) {
+      console.error("[account] delivery failed", error instanceof Error ? error.name : "unknown");
+    }
   }
 
   async function openSession(account: AccountRecord) {
@@ -303,7 +309,7 @@ export function createAccountApi(deps: Deps) {
 
   return {
     async register(request: NextRequest) {
-      if (!registrationOpen(env) || !pepper(env) || (env.NODE_ENV === "production" && !env.AUTH_DELIVERY_URL)) {
+      if (!registrationOpen(env) || !pepper(env) || (env.NODE_ENV === "production" && !productionDeliveryReady(env))) {
         return NextResponse.json({ error: "registration_not_configured" }, { status: 503 });
       }
       const body = await readBody(request);

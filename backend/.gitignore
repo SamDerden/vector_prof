@@ -12,3 +12,5 @@ coverage/
 backups/
 *.tsbuildinfo
 .auth-dev-outbox/
+data/catalog.index.json.previous
+data/catalog.index.json.tmp

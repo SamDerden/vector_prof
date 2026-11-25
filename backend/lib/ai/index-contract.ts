@@ -21,11 +21,14 @@ export type EmbeddingStartupPlan = "use" | "incomplete-lexical" | "rebuild-legac
 export function embeddingStartupPlan(input: {
   origin: RuntimeCatalogOrigin;
   decision: EmbeddingIndexDecision;
+  vectorSource?: string | null;
+  professionCount?: number | null;
 }): EmbeddingStartupPlan {
   if (input.origin === "data_freeze_1") {
-    return input.decision.action === "use" || input.decision.action === "use-structural"
-      ? "use"
-      : "incomplete-lexical";
+    const compatible = (input.decision.action === "use" || input.decision.action === "use-structural")
+      && input.vectorSource === "provider"
+      && input.professionCount === 152;
+    return compatible ? "use" : "incomplete-lexical";
   }
   if (input.decision.action === "rebuild") return "rebuild-legacy";
   if (input.decision.action === "refuse") return "refuse";

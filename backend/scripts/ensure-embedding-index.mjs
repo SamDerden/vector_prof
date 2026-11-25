@@ -1,5 +1,4 @@
 import fs from "node:fs/promises";
-import { spawnSync } from "node:child_process";
 
 import { assessEmbeddingIndex, embeddingStartupPlan } from "../lib/ai/index-contract.ts";
 import { loadRuntimeCatalog } from "../lib/runtime-catalog.ts";
@@ -17,15 +16,8 @@ try {
 }
 
 function rebuild() {
-  console.log("[RAG ensure] Rebuilding index using", configuredModel, "for", chunkCount, "catalog chunks");
-  const result = spawnSync(process.execPath, ["scripts/build-embedding-index.mjs"], {
-    stdio: "inherit",
-    timeout: 180000,
-    env: process.env,
-  });
-  if (result.status !== 0) {
-    throw new Error("RAG index rebuild failed; refusing to start with unverified index");
-  }
+  console.error("[RAG ensure] Refusing to call the embedding gateway during startup. Build the freeze index explicitly with: node --experimental-strip-types scripts/build-embedding-index.mjs --apply");
+  throw new Error("RAG index rebuild requires an explicit --apply command");
 }
 
 let decision = assessEmbeddingIndex({
@@ -34,7 +26,12 @@ let decision = assessEmbeddingIndex({
   chunkCount,
   configuredModel,
 });
-const plan = embeddingStartupPlan({ origin: runtime.origin, decision });
+const plan = embeddingStartupPlan({
+  origin: runtime.origin,
+  decision,
+  vectorSource: typeof index?.vector_source === "string" ? index.vector_source : null,
+  professionCount: typeof index?.profession_count === "number" ? index.profession_count : null,
+});
 
 if (plan === "incomplete-lexical") {
   console.warn("[RAG ensure] Semantic coverage is incomplete. The EmbeddingsGigaR index does not match the runtime freeze catalog, so it is not semantic coverage of all professions. Retrieval stays on the lexical fallback. The index file is left unchanged and no embedding request is sent.");

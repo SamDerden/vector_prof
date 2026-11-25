@@ -1,0 +1,73 @@
+# Preflight перед production
+
+Этот чеклист описывает локально подготовленные шаги. Он не заменяет проверку на целевом окружении и не разрешает deploy.
+
+## Что уже можно сделать локально
+
+- Каталог freeze читается в runtime: 152 профессии, 184 пробы, 337 программ.
+- Пустая таблица `professions` больше не даёт 503, если freeze доступен. Профессия без UUID отдаётся по стабильному `profession_id`.
+- Синхронизация профессий добавляет недостающие строки и не удаляет существующие. UUID создаёт только PostgreSQL. Повторный запуск не создаёт дубли.
+- Сборщик эмбеддингов читает freeze. `--dry-run` не ходит в сеть. Semantic включается только для проверенного индекса `vector_source=provider` на все 152 профессии. Текущий индекс EmbeddingsGigaR остаётся лексическим fallback и не заменяется mock-векторами.
+- Доставка кодов регистрации работает через HTTP webhook, SMTP или локальный файл. В production регистрация остаётся выключенной, пока не настроен HTTP или SMTP.
+
+## Изолированная база
+
+Разрешено подключаться только к `127.0.0.1:55432` пользователем изолированного стенда.
+
+Не использовать:
+
+- `navigator-postgres` на порту 5433;
+- рабочую базу `vector_prof_generation_stand`;
+- production, Railway и любые другие хосты.
+
+Новая чистая база для миграций: имя `vector_prof_migration_*`.
+Клон с тестовыми данными: имя `vector_prof_sync_*`.
+Миграции 001–012 не изменяются. Отдельная миграция 013 не нужна: синхронизация использует уже существующие колонки.
+
+Команда синхронизации из каталога `backend`:
+
+```text
+node --experimental-strip-types scripts/sync-freeze-professions.mjs
+node --experimental-strip-types scripts/sync-freeze-professions.mjs --apply
+```
+
+`--apply` требует `CONFIRM_FREEZE_SYNC=data_freeze_1`. Для чистой базы `vector_prof_clean_20261125` дополнительно нужен `CONFIRM_FREEZE_SYNC_DATABASE` с её точным именем. Рабочий стенд команда отклоняет.
+
+## Откат
+
+Автоматического отката, который удаляет аккаунты или профессии, нет. Перед применением на целевой базе снять логический backup. Если миграция или синхронизация не прошла, восстановить этот backup. Не выполнять `DROP`, `DELETE` или `TRUNCATE` по пользовательским таблицам как способ отката.
+
+## Семантический индекс
+
+Проверка без сети:
+
+```text
+node --experimental-strip-types scripts/build-embedding-index.mjs --dry-run
+```
+
+Реальные векторы строить только отдельной командой, когда есть непроизводственный шлюз EmbeddingsGigaR на 2560 измерений:
+
+```text
+node --experimental-strip-types scripts/build-embedding-index.mjs --apply
+```
+
+Пока такой индекс не проверен, retrieval остаётся на лексическом fallback. Mock-файл нельзя записывать поверх `data/catalog.index.json`.
+
+## Почта
+
+Нужные переменные, без значений секретов:
+
+- `AUTH_REGISTRATION_ENABLED=true` только когда доставка реально настроена;
+- `AUTH_CHALLENGE_SECRET` — отдельный длинный секрет;
+- `AUTH_EMAIL_TRANSPORT=http` и `AUTH_DELIVERY_URL`, либо `AUTH_EMAIL_TRANSPORT=smtp`, `SMTP_HOST`, `SMTP_PORT`, `SMTP_FROM`, `SMTP_USER`, `SMTP_PASSWORD`;
+- `SMTP_SECURE=true` для TLS на порту 465;
+- `AUTH_DELIVERY_TOKEN`, если webhook требует авторизацию.
+
+Локальный файл `.auth-dev-outbox` используется только вне production. Код не возвращается в JSON. Несуществующий адрес и повторная отправка дают один и тот же нейтральный ответ.
+
+## Что остаётся перед deploy
+
+- Получить реальные SMTP или webhook credentials и DNS у команды. Не подставлять их в репозиторий.
+- Прогнать миграции 001–012 и синхронизацию профессий на копии целевой базы, не на production.
+- Построить и проверить provider-индекс EmbeddingsGigaR. До этого semantic не включать.
+- Снять backup целевой базы и согласовать окно применения.

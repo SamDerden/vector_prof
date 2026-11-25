@@ -1,10 +1,7 @@
-import { createHash } from "node:crypto";
-import { mkdirSync, writeFileSync } from "node:fs";
-import path from "node:path";
-
 import { NextRequest, NextResponse } from "next/server";
 
 import { isMissingSchemaError, query } from "../db.ts";
+import { createEmailDelivery } from "./email-delivery.ts";
 import { ownsAnonymousSession } from "../session-proof.ts";
 import {
   createAccountApi,
@@ -200,24 +197,7 @@ export const pgAccountStore: AccountStore = {
 };
 
 async function deliver(email: string, purpose: "verify" | "reset", code: string) {
-  const url = process.env.AUTH_DELIVERY_URL;
-  if (url) {
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "content-type": "application/json",
-        ...(process.env.AUTH_DELIVERY_TOKEN ? { authorization: `Bearer ${process.env.AUTH_DELIVERY_TOKEN}` } : {}),
-      },
-      body: JSON.stringify({ email, purpose, code }),
-    });
-    if (!response.ok) throw new Error("delivery_failed");
-    return;
-  }
-  if (process.env.NODE_ENV === "production") throw new Error("delivery_not_configured");
-  const dir = path.join(process.cwd(), ".auth-dev-outbox");
-  mkdirSync(dir, { recursive: true });
-  const name = createHash("sha256").update(`${purpose}:${email}`).digest("hex").slice(0, 16);
-  writeFileSync(path.join(dir, `${purpose}-${name}.txt`), code, { mode: 0o600 });
+  await createEmailDelivery(process.env).send({ to: email, purpose, code });
 }
 
 function api() {

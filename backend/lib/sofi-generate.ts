@@ -280,6 +280,16 @@ function replayBody(row: Record<string, unknown>, job: GenerationJob): Record<st
   };
 }
 
+export function freezeProfessionRows(professions: Array<{ profession_id: string; name: string }>) {
+  return {
+    professions: professions.map((profession) => ({
+      id: profession.profession_id,
+      graphProfessionId: profession.profession_id,
+    })),
+    titles: new Map(professions.map((profession) => [profession.profession_id, profession.name])),
+  };
+}
+
 export async function executeGenerate(input: {
   sessionId: string;
   body: unknown;
@@ -374,8 +384,24 @@ export async function executeGenerate(input: {
      WHERE is_active = TRUE
      ORDER BY title ASC`
   );
+  const runtimeCatalog = loadRuntimeCatalog();
+  let professions: ProfessionCatalogRow[];
+  let titles: Map<string, string>;
   if (!professionsResult.rowCount) {
-    return { ok: false, status: 503, error: "Profession catalog is empty" };
+    if (runtimeCatalog.catalog.professions.length === 0) {
+      return { ok: false, status: 503, error: "Profession catalog is empty" };
+    }
+    ({ professions, titles } = freezeProfessionRows(runtimeCatalog.catalog.professions));
+  } else {
+    professions = professionsResult.rows.map((row) => ({
+      id: String(row.id),
+      graphProfessionId: typeof row.graph_profession_id === "string"
+        ? row.graph_profession_id
+        : null,
+    }));
+    titles = new Map(
+      professionsResult.rows.map((row) => [String(row.id), String(row.title ?? "")])
+    );
   }
 
   const tier = tierForGrade(schoolGrade);
@@ -402,16 +428,6 @@ export async function executeGenerate(input: {
   const generationClarifications = input.idempotencyKey
     ? (suppliedClarifications ?? clarificationAnswers)
     : clarificationAnswers;
-  const professions: ProfessionCatalogRow[] = professionsResult.rows.map((row) => ({
-    id: String(row.id),
-    graphProfessionId: typeof row.graph_profession_id === "string"
-      ? row.graph_profession_id
-      : null,
-  }));
-  const titles = new Map(
-    professionsResult.rows.map((row) => [String(row.id), String(row.title ?? "")])
-  );
-
   let prepared;
   try {
     prepared = prepareSofiInput({
@@ -668,8 +684,8 @@ async function finishOwnedGeneration(source: {
 
   // Resolve missing legacy DB graph IDs only through unique, exact source-catalog titles.
   // Never write to the professions table or invent profession identifiers.
-  let mappingRows = professions;
   const runtimeCatalog = loadRuntimeCatalog();
+  let mappingRows = professions;
   try {
     const source = runtimeCatalog.catalog;
     const byTitle = new Map<string, string[]>();
@@ -1068,7 +1084,11 @@ export async function runFrozenGeneration(args: {
   const loaded = await args.deps.query(PROFESSIONS_BY_IDS_SQL, [args.snapshot.professionIds]);
   const found = loaded.rows.map((row) => String(row.id)).sort();
   const expected = [...args.snapshot.professionIds].sort();
-  if (expected.length === 0 || expected.join("\n") !== found.join("\n")) {
+  const databaseMatches = expected.length > 0 && expected.join("\n") === found.join("\n");
+  const runtimeCatalog = loadRuntimeCatalog();
+  const freezeOnly = expected.length > 0
+    && expected.every((id) => !isUuid(id) && runtimeCatalog.catalog.professions.some((profession) => profession.profession_id === id));
+  if (!databaseMatches && !freezeOnly) {
     return {
       ok: false,
       status: 502,
@@ -1076,18 +1096,25 @@ export async function runFrozenGeneration(args: {
       details: { requestId: args.requestId, jobStatus: "failed", errorCode: "input_unavailable" },
     };
   }
+  const freezeRows = freezeProfessionRows(
+    runtimeCatalog.catalog.professions.filter((profession) => expected.includes(profession.profession_id))
+  );
   return finishOwnedGeneration({
     deps: args.deps,
     sessionId: args.sessionId,
     idempotencyKey: args.requestId,
     ownedJob: args.job,
     prepared,
-    professions: loaded.rows.map((row) => ({
-      id: String(row.id),
-      graphProfessionId: typeof row.graph_profession_id === "string" ? row.graph_profession_id : null,
-    })),
+    professions: databaseMatches
+      ? loaded.rows.map((row) => ({
+          id: String(row.id),
+          graphProfessionId: typeof row.graph_profession_id === "string" ? row.graph_profession_id : null,
+        }))
+      : freezeRows.professions,
     tier: tierForGrade(args.snapshot.schoolGrade),
-    titles: new Map(loaded.rows.map((row) => [String(row.id), String(row.title ?? "")])),
+    titles: databaseMatches
+      ? new Map(loaded.rows.map((row) => [String(row.id), String(row.title ?? "")]))
+      : freezeRows.titles,
     ownFailure: false,
   });
 }
