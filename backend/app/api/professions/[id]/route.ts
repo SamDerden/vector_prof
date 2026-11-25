@@ -1,6 +1,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { query } from "@/lib/db";
+import { loadRuntimeCatalog } from "@/lib/runtime-catalog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -15,7 +16,66 @@ export async function GET(
 ) {
   try {
     const { id } = await context.params;
+    const runtime = loadRuntimeCatalog();
+    const catalogProfession = runtime.catalog.professions.find((item) => item.profession_id === id);
+    if (catalogProfession) {
+      let storedId: string | null = null;
+      try {
+        const stored = await query<{ id: string }>(
+          "SELECT id::text AS id FROM professions WHERE external_id = $1 LIMIT 1",
+          [catalogProfession.profession_id]
+        );
+        storedId = stored.rows[0]?.id ?? null;
+      } catch {
+        storedId = null;
+      }
+      return NextResponse.json({
+        data: {
+          id: storedId,
+          external_id: catalogProfession.profession_id,
+          title: catalogProfession.name,
+          description: catalogProfession.what_kid_does,
+          industry_name: catalogProfession.industry_name,
+          riasec: catalogProfession.riasec_profile,
+          demand_level_region: catalogProfession.demand_level,
+          salary_median_region: catalogProfession.salary_median_rub,
+          vacancies_count: catalogProfession.vacancies_count,
+          source: runtime.origin,
+          skills: catalogProfession.skills.map((skill) => ({
+            skill_id: skill.skill_id,
+            name: skill.name,
+            type: skill.type ?? null,
+            description_kid: skill.description_kid ?? null,
+            importance: skill.importance ?? null,
+          })),
+          education_programs: catalogProfession.programs.map((program) => ({
+            program_id: program.program_id,
+            title: program.name,
+            level: program.level ?? null,
+            specialty_code: program.specialty_code ?? null,
+            duration_years: program.duration_years ?? null,
+            organization_name: program.organization_name ?? program.organization?.name ?? null,
+            fit_level: program.fit_level ?? null,
+          })),
+          trials: catalogProfession.trials.map((trial) => ({
+            trial_id: trial.trial_id,
+            title: trial.title,
+            description: trial.description_1_4 ?? null,
+            format: trial.format ?? null,
+            duration_minutes: trial.duration_minutes ?? null,
+            age_min: trial.age_min ?? null,
+            age_max: trial.age_max ?? null,
+            municipality: trial.municipality ?? null,
+            cost: trial.cost ?? null,
+            source_url: trial.source_url ?? null,
+            organization_name: trial.organization_name ?? trial.organization?.name ?? null,
+          })),
+          vacancy_history: [],
+        },
+      });
+    }
 
+    // UUID rows that predate the freeze stay readable when PostgreSQL has them.
     // 1. Основная информация о профессии
     // Поддерживаем внешний ID Алисы (prof_001)
     // и внутренний UUID PostgreSQL.

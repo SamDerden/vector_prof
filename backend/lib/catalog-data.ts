@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import path from "node:path";
 
+import { loadRuntimeCatalog } from "./runtime-catalog.ts";
+
 export type ClarificationOption = {
   value: string;
   label: string;
@@ -123,29 +125,34 @@ export function getMockStudents(): MockStudent[] {
   return mockStudentsCache;
 }
 
-function asGraphProfessions(data: unknown): GraphProfession[] | null {
-  if (Array.isArray(data)) {
-    return data as GraphProfession[];
-  }
-  if (
-    data &&
-    typeof data === "object" &&
-    Array.isArray((data as { professions?: unknown }).professions)
-  ) {
-    return (data as { professions: GraphProfession[] }).professions;
-  }
-  return null;
-}
-
 export function getNavigatorGraph(): GraphProfession[] | null {
   if (graphCache !== undefined) {
     return graphCache;
   }
 
   try {
-    graphCache = asGraphProfessions(
-      readJson<unknown>("data/navigator_full_graph.json")
-    );
+    const runtime = loadRuntimeCatalog();
+    graphCache = runtime.catalog.professions.map((profession) => ({
+      profession_id: profession.profession_id,
+      name: profession.name,
+      industry: profession.industry_name,
+      description_for_kid: profession.what_kid_does,
+      riasec_profile: profession.riasec_profile ?? undefined,
+      education_programs: profession.programs.map((program) => ({
+        program_id: program.program_id,
+        name: program.name,
+        organization: program.organization_name ?? program.organization?.name ?? "",
+        level: program.level ?? "",
+        fit_level: program.fit_level ?? undefined,
+      })),
+      trials: profession.trials.map((trial) => ({
+        trial_id: trial.trial_id,
+        title: trial.title,
+        organization: trial.organization_name ?? trial.organization?.name,
+        format: trial.format,
+        description: trial.description_1_4,
+      })),
+    }));
   } catch {
     graphCache = null;
   }

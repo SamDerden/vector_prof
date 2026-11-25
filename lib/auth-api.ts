@@ -279,10 +279,13 @@ export async function fetchMe(options: { signal?: AbortSignal; fetchImpl?: typeo
   return call<{ authenticated: boolean; user?: AccountUser | null }>("/api/auth/me", options);
 }
 
-export async function register(input: { email: string }, options: { fetchImpl?: typeof fetch } = {}) {
+export async function register(input: { email: string; password?: string }, options: { fetchImpl?: typeof fetch } = {}) {
   return call<{ status?: string; message?: string }>("/api/auth/register", {
     method: "POST",
-    body: { email: normalizeEmail(input.email) },
+    body: {
+      email: normalizeEmail(input.email),
+      ...(input.password ? { password: input.password } : {}),
+    },
     fetchImpl: options.fetchImpl,
   });
 }

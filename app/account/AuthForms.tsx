@@ -163,7 +163,7 @@ export function AuthPanel({
     }
     setBusy(true);
     try {
-      await register({ email });
+      await register({ email, password });
       onRegistered?.(email);
       // The backend answers registration with an account-existence-neutral
       // message, so nothing here may claim that a new account was created.

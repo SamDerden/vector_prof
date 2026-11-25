@@ -260,12 +260,10 @@ export async function retrieve(
   }
 
   // 1. Загружаем индекс
-  const [indexRaw, catalogRaw] = await Promise.all([
-    fs.readFile("data/catalog.index.json", "utf8"),
-    fs.readFile("data/catalog.normalized.json", "utf8"),
-  ]);
+  const indexRaw = await fs.readFile("data/catalog.index.json", "utf8");
   const index = JSON.parse(indexRaw) as CatalogIndex;
-  const catalog = JSON.parse(catalogRaw) as NormalizedCatalogSnapshot;
+  const { loadRuntimeCatalog } = await import("../runtime-catalog.ts");
+  const catalog = loadRuntimeCatalog().catalog as NormalizedCatalogSnapshot;
   const indexIsCurrent = index.catalog_version === catalog.version;
   // The query and index MUST use the same embedding model.
   // `model` is the legacy field; `embedding_model` is the current one.

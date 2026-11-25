@@ -121,6 +121,13 @@ test("register sends exactly one identifier: email, never both channels", async 
   await register({ email: "student@example.test" }, { fetchImpl });
   const body = JSON.parse(calls[0].init.body);
   assert.deepEqual(Object.keys(body), ["email"]);
+  const withPassword = recorder({ status: 202, body: {} });
+  await register({ email: "student@example.test", password: "correct-horse-battery" }, { fetchImpl: withPassword.fetchImpl });
+  assert.deepEqual(JSON.parse(withPassword.calls[0].init.body), {
+    email: "student@example.test",
+    password: "correct-horse-battery",
+  });
+  assert.match(FORMS, /register\(\{\s*email,\s*password\s*\}\)/);
   assert.equal(normalizeEmail("  Student@Example.TEST "), "student@example.test");
   assert.ok(isEmail("student@example.test"));
   assert.ok(!isEmail("student@"));

@@ -1,6 +1,3 @@
-import fs from "node:fs/promises";
-import path from "node:path";
-
 import agePolicy from "@/config/age_policy.json" with { type: "json" };
 import llmConfig from "@/config/llm.config.json" with { type: "json" };
 import ragConfig from "@/config/rag.config.json" with { type: "json" };
@@ -17,6 +14,7 @@ import { OpenAICompatibleClient } from "@/lib/ai/llm/openaiCompatible";
 import { postprocess, type PostprocessContext } from "@/lib/ai/postprocess";
 import { buildPrompt } from "@/lib/ai/prompts";
 import { retrieve } from "@/lib/ai/retrieval";
+import { loadRuntimeCatalog } from "@/lib/runtime-catalog";
 import { extractDigitWhitelist, type ValidationContext } from "@/lib/ai/validate";
 
 import type { PreparedSofiInput, SofiModuleResult } from "./sofi-adapter.ts";
@@ -77,11 +75,7 @@ export async function runSofiPipeline(
   const grade = prepared.student.school_grade;
   const dossier = buildDossier(prepared.rawAnswers, prepared.student);
   const tier = dossier.student.tier;
-  const catalogRaw = await fs.readFile(
-    path.resolve(process.cwd(), "data/catalog.normalized.json"),
-    "utf8"
-  );
-  const catalog = JSON.parse(catalogRaw) as NormalizedCatalog;
+  const catalog = loadRuntimeCatalog().catalog;
   if (catalog.schema_version !== "hybrid_v2") {
     throw new Error(`Ожидалась схема каталога hybrid_v2, получена ${catalog.schema_version}`);
   }

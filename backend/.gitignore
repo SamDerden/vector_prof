@@ -11,3 +11,4 @@ coverage/
 *.dump
 backups/
 *.tsbuildinfo
+.auth-dev-outbox/

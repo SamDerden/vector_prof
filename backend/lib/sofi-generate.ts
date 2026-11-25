@@ -1,7 +1,6 @@
 import { CapacityError } from "./request-limits.ts";
 import type { PoolClient } from "pg";
-import fs from "node:fs/promises";
-import path from "node:path";
+import { loadRuntimeCatalog } from "./runtime-catalog.ts";
 
 import questionnaireByGrade from "../config/questionnaire_by_grade.json" with { type: "json" };
 import {
@@ -670,10 +669,9 @@ async function finishOwnedGeneration(source: {
   // Resolve missing legacy DB graph IDs only through unique, exact source-catalog titles.
   // Never write to the professions table or invent profession identifiers.
   let mappingRows = professions;
+  const runtimeCatalog = loadRuntimeCatalog();
   try {
-    const source = JSON.parse(await fs.readFile(path.resolve(process.cwd(), "data/catalog.normalized.json"), "utf8")) as {
-      professions?: Array<{ profession_id?: string; name?: string }>;
-    };
+    const source = runtimeCatalog.catalog;
     const byTitle = new Map<string, string[]>();
     for (const entry of source.professions ?? []) {
       if (!entry.profession_id || !entry.name) continue;
@@ -703,25 +701,15 @@ async function finishOwnedGeneration(source: {
   // Keep catalog-backed recommendations visible even when the legacy SQL
   // professions table has no graph_profession_id mapping. Do not invent UUIDs.
   const catalogProfessionNames = new Map<string, string>();
-  try {
-    const raw = await fs.readFile(path.resolve(process.cwd(), "data/catalog.normalized.json"), "utf8");
-    const graph = JSON.parse(raw) as { professions?: Array<{ profession_id: string; name: string }> };
-    for (const profession of graph.professions ?? []) {
-      catalogProfessionNames.set(profession.profession_id, profession.name);
-    }
-  } catch (error) {
-    console.warn("[Sofi mapping] Could not load catalog profession titles", error instanceof Error ? error.message : "unknown");
+  for (const profession of runtimeCatalog.catalog.professions) {
+    catalogProfessionNames.set(profession.profession_id, profession.name);
   }
-  // Resolve internal skill identifiers only through the approved source catalog.
+  for (const [id, name] of runtimeCatalog.legacyNames) {
+    if (!catalogProfessionNames.has(id)) catalogProfessionNames.set(id, name);
+  }
   const skillNames = new Map<string, string>();
-  try {
-    const rawSkills = await fs.readFile(path.resolve(process.cwd(), "data/navigator_full_graph.json"), "utf8");
-    const sourceCatalog = JSON.parse(rawSkills) as { skills?: Array<{ skill_id: string; name: string }> };
-    for (const skill of sourceCatalog.skills ?? []) {
-      if (skill.skill_id && skill.name) skillNames.set(skill.skill_id, skill.name);
-    }
-  } catch (error) {
-    console.warn("[Sofi mapping] Skill reference unavailable", error instanceof Error ? error.message : "unknown");
+  for (const skill of runtimeCatalog.catalog.skills ?? []) {
+    if (skill.skill_id && skill.name) skillNames.set(skill.skill_id, skill.name);
   }
   const publicSkill = (value: unknown): string | null => publicSkillName(value, skillNames);
   const hypotheses = junior
@@ -794,8 +782,7 @@ async function finishOwnedGeneration(source: {
   const graphProfessionsById = new Map<string, Record<string, unknown>>();
   let catalogActivities: Array<{ id: string; title: string; description?: string; durationMinutes?: number | null; format?: string | null; municipality?: string | null; cost?: string | null; sourceUrl?: string | null; organization?: unknown }> = [];
   try {
-    const rawCatalog = await fs.readFile(path.resolve(process.cwd(), "data/catalog.normalized.json"), "utf8");
-    const catalog = JSON.parse(rawCatalog) as {
+    const catalog = runtimeCatalog.catalog as unknown as {
       professions?: Array<Record<string, unknown>>;
       trials?: Array<{ trial_id?: unknown; title?: unknown; age_min?: unknown; age_max?: unknown; description_1_4?: unknown; duration_minutes?: unknown; format?: unknown; municipality?: unknown; cost?: unknown; source_url?: unknown; organization?: unknown }>;
     };

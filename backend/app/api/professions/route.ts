@@ -1,48 +1,31 @@
-
 import { NextResponse } from "next/server";
+
 import { query } from "@/lib/db";
+import { loadRuntimeCatalog, publicProfessionRows } from "@/lib/runtime-catalog";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  const runtime = loadRuntimeCatalog();
+  const data = publicProfessionRows(runtime);
   try {
-    const result = await query(`
-      SELECT
-        p.id,
-        p.external_id,
-        p.title,
-        p.description,
-        i.name AS industry_name,
-        p.riasec,
-        p.demand_level_region,
-        p.salary_median_region,
-        p.vacancies_count
-      FROM professions p
-      LEFT JOIN industries i
-        ON p.industry_id = i.id
-      WHERE p.is_active = TRUE
-      ORDER BY p.title ASC
-    `);
-
-    return NextResponse.json({
-      data: result.rows,
-      count: result.rows.length
-    });
-
-  } catch (error) {
-    console.error(
-      "Failed to fetch professions:",
-      error
+    const ids = data.map((profession) => profession.profession_id);
+    const stored = await query(
+      "SELECT id::text AS id, external_id FROM professions WHERE external_id = ANY($1::text[])",
+      [ids]
     );
-
-    return NextResponse.json(
-      {
-        error: "Failed to fetch professions"
-      },
-      {
-        status: 500
-      }
-    );
+    const uuids = new Map(stored.rows.map((row) => [String(row.external_id), String(row.id)]));
+    for (const profession of data) {
+      const id = uuids.get(profession.profession_id);
+      if (id) profession.id = id;
+    }
+  } catch {
+    // The freeze catalog is the source of truth. A missing or older professions table must not hide it.
   }
+  return NextResponse.json({
+    data,
+    count: data.length,
+    source: runtime.origin,
+  });
 }
