@@ -10,7 +10,7 @@
 
 `meta`, `industries`, `skills`, `organizations`, `professions`, `trials`, `education_programs`, `profession_first_steps`, `self_guided_steps`.
 
-`professions[].riasec` — шесть значений 0..1. 
+`professions[].riasec` — шесть значений 0..1.
 `professions[].current_market_state` — последние ориентиры из Excel, НЕ проверенный текущий рынок.
 `professions[].vacancy_history` — **только реальные строки из таблицы vacancy_snapshot**; в текущей базе по одной исторической строке на профессию. Не создавать несуществующие временные ряды.
 `professions[].skills` — все связи profession_skill, включая исключённые из рекомендательного прототипа. **Перед расчётом ранжирования фильтровать `matching_eligible == 'yes_provisional'`.** `matching_weight` не нужно дополнительно умножать на `matching_prevalence_weight` без отдельной спецификации скоринга.
