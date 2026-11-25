@@ -1,9 +1,11 @@
 import fs from "node:fs/promises";
 import { spawnSync } from "node:child_process";
 
-import { assessEmbeddingIndex } from "../lib/ai/index-contract.ts";
+import { assessEmbeddingIndex, embeddingStartupPlan } from "../lib/ai/index-contract.ts";
+import { loadRuntimeCatalog } from "../lib/runtime-catalog.ts";
 
-const catalog = JSON.parse(await fs.readFile("data/catalog.normalized.json", "utf8"));
+const runtime = loadRuntimeCatalog();
+const catalog = runtime.catalog;
 const configuredModel = (process.env.LLM_EMBEDDINGS_MODEL || "").trim();
 const chunkCount = Array.isArray(catalog.chunks) ? catalog.chunks.length : 0;
 
@@ -32,8 +34,14 @@ let decision = assessEmbeddingIndex({
   chunkCount,
   configuredModel,
 });
+const plan = embeddingStartupPlan({ origin: runtime.origin, decision });
 
-if (decision.action === "rebuild") {
+if (plan === "incomplete-lexical") {
+  console.warn("[RAG ensure] Semantic coverage is incomplete. The EmbeddingsGigaR index does not match the runtime freeze catalog, so it is not semantic coverage of all professions. Retrieval stays on the lexical fallback. The index file is left unchanged and no embedding request is sent.");
+  process.exit(0);
+}
+
+if (plan === "rebuild-legacy") {
   rebuild();
   const rebuilt = JSON.parse(await fs.readFile("data/catalog.index.json", "utf8"));
   decision = assessEmbeddingIndex({

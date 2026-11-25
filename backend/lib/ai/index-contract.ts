@@ -8,6 +8,30 @@ export type RecordedEmbeddingModel = {
   conflict: boolean;
 };
 
+export type RuntimeCatalogOrigin = "data_freeze_1" | "legacy_normalized";
+
+export type EmbeddingStartupPlan = "use" | "incomplete-lexical" | "rebuild-legacy" | "refuse";
+
+/**
+ * The shipped EmbeddingsGigaR index belongs to the legacy normalized catalog.
+ * A freeze mismatch must stay lexical: do not call the embedding gateway and
+ * do not describe that index as semantic coverage of the runtime catalog.
+ * Rebuilding stays available only for the legacy catalog the builder reads.
+ */
+export function embeddingStartupPlan(input: {
+  origin: RuntimeCatalogOrigin;
+  decision: EmbeddingIndexDecision;
+}): EmbeddingStartupPlan {
+  if (input.origin === "data_freeze_1") {
+    return input.decision.action === "use" || input.decision.action === "use-structural"
+      ? "use"
+      : "incomplete-lexical";
+  }
+  if (input.decision.action === "rebuild") return "rebuild-legacy";
+  if (input.decision.action === "refuse") return "refuse";
+  return "use";
+}
+
 export type EmbeddingIndexDecision =
   | {
       action: "use" | "use-structural";
