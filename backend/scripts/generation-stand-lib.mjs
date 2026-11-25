@@ -7,6 +7,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 export const STAND_HOST = "127.0.0.1";
 export const STAND_PORT = "55432";
 export const STAND_DATABASE = "vector_prof_generation_stand";
+export const CLEAN_DATABASE = "vector_prof_clean_20261125";
+const ALLOWED_DATABASES = new Set([STAND_DATABASE, CLEAN_DATABASE]);
 export const STAND_USER = "generation_stand";
 export const STAND_PASSWORD = "generation_stand_local_only";
 export const STAND_URL = `postgresql://${STAND_USER}:${STAND_PASSWORD}@${STAND_HOST}:${STAND_PORT}/${STAND_DATABASE}`;
@@ -33,8 +35,8 @@ export function assertStandDatabaseUrl(value) {
   if (port !== STAND_PORT) {
     throw new Error("Stand port must be 55432.");
   }
-  if (database !== STAND_DATABASE) {
-    throw new Error("Stand database must be vector_prof_generation_stand.");
+  if (!ALLOWED_DATABASES.has(database)) {
+    throw new Error("Stand database must be an isolated generation-stand database.");
   }
   if (user !== STAND_USER) {
     throw new Error("Stand user must be generation_stand.");

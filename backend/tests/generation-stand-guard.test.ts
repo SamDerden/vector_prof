@@ -5,6 +5,7 @@ import test from "node:test";
 import {
   assertStandDatabaseUrl,
   assertStandInvocation,
+  CLEAN_DATABASE,
   STAND_URL,
 } from "../scripts/generation-stand-lib.mjs";
 
@@ -32,6 +33,12 @@ test("the isolated stand does not reuse the existing database", () => {
 
 test("the stand guard rejects the existing database and ignores DATABASE_URL", () => {
   assert.equal(assertStandDatabaseUrl(STAND_URL), STAND_URL);
+  const cleanUrl = STAND_URL.replace("vector_prof_generation_stand", CLEAN_DATABASE);
+  assert.equal(assertStandDatabaseUrl(cleanUrl), cleanUrl);
+  assert.throws(
+    () => assertStandDatabaseUrl(STAND_URL.replace("vector_prof_generation_stand", "postgres")),
+    /isolated generation-stand database/
+  );
   assert.throws(() => assertStandDatabaseUrl(""), /GENERATION_STAND_DATABASE_URL is required/);
   assert.throws(
     () => assertStandDatabaseUrl("postgresql://navigator:navigator_dev_password@127.0.0.1:5433/navigator"),

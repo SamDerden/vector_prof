@@ -4,7 +4,7 @@ import { spawn } from "node:child_process";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-import { assertStandInvocation } from "../backend/scripts/generation-stand-lib.mjs";
+import { assertStandInvocation, CLEAN_DATABASE, STAND_DATABASE, STAND_USER } from "../backend/scripts/generation-stand-lib.mjs";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const backend = path.join(root, "backend");
@@ -29,7 +29,7 @@ await client.connect();
 try {
   const identity = await client.query("SELECT current_database() AS database, current_user AS user");
   const row = identity.rows[0];
-  if (row.database !== "vector_prof_generation_stand" || row.user !== "generation_stand") {
+  if ((row.database !== STAND_DATABASE && row.database !== CLEAN_DATABASE) || row.user !== STAND_USER) {
     console.error("Refusing to start: the connection is not the isolated stand.");
     process.exit(2);
   }

@@ -127,7 +127,7 @@ test("grades 5–8 recover a 202 result after reload without another generation"
   });
   await answerOwnJourney(page, 7);
   await expect.poll(() => serverAccepted, { timeout: 90_000 }).toBe(true);
-  await expect(page.getByText("Формируем персональные рекомендации")).toBeVisible();
+  await expect(page.getByText("Формируем рекомендации по твоим ответам…")).toBeVisible();
   await page.reload({ waitUntil: "domcontentloaded" });
   jobGate.release();
   await expectResult(page, 7);
