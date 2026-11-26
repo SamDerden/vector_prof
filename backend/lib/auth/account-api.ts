@@ -29,11 +29,13 @@ export type AccountRecord = {
   createdAt: string;
 };
 
+export type CodePurpose = "verify" | "reset" | "login";
+
 export type AuthChallenge = {
   id: string;
   accountId: string | null;
   email: string;
-  purpose: "verify" | "reset";
+  purpose: CodePurpose;
   codeHash: string;
   expiresAt: string;
   attempts: number;
@@ -69,7 +71,7 @@ export interface AccountStore {
   insertAccount(account: AccountRecord): Promise<void>;
   saveAccount(account: AccountRecord): Promise<void>;
   insertChallenge(challenge: AuthChallenge): Promise<void>;
-  latestChallenge(email: string, purpose: "verify" | "reset"): Promise<AuthChallenge | null>;
+  latestChallenge(email: string, purpose: CodePurpose): Promise<AuthChallenge | null>;
   saveChallenge(challenge: AuthChallenge): Promise<void>;
   insertAuthSession(session: AuthSessionRecord): Promise<void>;
   findAuthSession(tokenHash: string): Promise<AuthSessionRecord | null>;
@@ -102,6 +104,11 @@ export function createMemoryAccountStore(): AccountStore & {
       accounts.set(account.id, { ...account });
     },
     async insertChallenge(challenge) {
+      for (const existing of challenges) {
+        if (existing.email === challenge.email && existing.purpose === challenge.purpose && !existing.consumedAt) {
+          existing.consumedAt = challenge.expiresAt;
+        }
+      }
       challenges.push({ ...challenge });
     },
     async latestChallenge(email, purpose) {
@@ -155,7 +162,7 @@ type Deps = {
   store: AccountStore;
   env?: NodeJS.ProcessEnv;
   now?: () => Date;
-  deliver?: (email: string, purpose: "verify" | "reset", code: string) => Promise<void>;
+  deliver?: (email: string, purpose: CodePurpose, code: string) => Promise<void>;
   verifyOwnership?: (sessionId: string, proof: string | undefined) => boolean;
 };
 
@@ -250,7 +257,7 @@ export function createAccountApi(deps: Deps) {
     return true;
   }
 
-  async function issueCode(account: AccountRecord | null, email: string, purpose: "verify" | "reset") {
+  async function issueCode(account: AccountRecord | null, email: string, purpose: CodePurpose) {
     const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
     await deps.store.insertChallenge({
       id: crypto.randomUUID(),
@@ -386,6 +393,57 @@ export function createAccountApi(deps: Deps) {
       const account = validEmail(email) ? await deps.store.findAccountByEmail(email) : null;
       const passwordOk = Boolean(account && account.status === "active" && await verifyPassword(typeof body.password === "string" ? body.password : "", account.passwordHash));
       if (!account || !passwordOk) return NextResponse.json({ error: "invalid_credentials" }, { status: 401 });
+      return openSession(account);
+    },
+
+    async requestLoginCode(request: NextRequest) {
+      const body = await readBody(request);
+      const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+      if (!validEmail(email)) return NextResponse.json({ error: "validation" }, { status: 400 });
+      if (!allow(`login-code-burst:${email}`, 60, 1)) {
+        return NextResponse.json({ error: "rate_limited", details: { retryAfterMs: 60_000 } }, { status: 429 });
+      }
+      if (!allow(`login-code:${email}`, 3600, 5)) {
+        return NextResponse.json({ error: "rate_limited", details: { retryAfterMs: 3_600_000 } }, { status: 429 });
+      }
+      const account = await deps.store.findAccountByEmail(email);
+      if (account?.status === "active") await issueCode(account, email, "login");
+      return NextResponse.json({ status: "accepted" }, { status: 202 });
+    },
+
+    async confirmLoginCode(request: NextRequest) {
+      const body = await readBody(request);
+      const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+      const code = typeof body.code === "string" ? body.code.trim() : "";
+      const challenge = validEmail(email) ? await deps.store.latestChallenge(email, "login") : null;
+      const expected = Buffer.from(challenge?.codeHash ?? hashCode("000000", env));
+      const received = Buffer.from(hashCode(/^\d{6}$/.test(code) ? code : "000000", env));
+      const matches = received.length === expected.length && timingSafeEqual(received, expected);
+      const usable = Boolean(
+        challenge
+        && !challenge.consumedAt
+        && Date.parse(challenge.expiresAt) > now().getTime()
+        && challenge.attempts < MAX_CODE_ATTEMPTS
+        && matches
+      );
+      if (!usable) {
+        if (
+          challenge
+          && !challenge.consumedAt
+          && Date.parse(challenge.expiresAt) > now().getTime()
+          && challenge.attempts < MAX_CODE_ATTEMPTS
+        ) {
+          challenge.attempts += 1;
+          await deps.store.saveChallenge(challenge);
+        }
+        return NextResponse.json({ error: "invalid_code" }, { status: 400 });
+      }
+      challenge!.consumedAt = now().toISOString();
+      await deps.store.saveChallenge(challenge!);
+      const account = await deps.store.findAccountByEmail(email);
+      if (!account || account.status !== "active") {
+        return NextResponse.json({ error: "invalid_code" }, { status: 400 });
+      }
       return openSession(account);
     },
 

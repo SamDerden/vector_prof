@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { isMissingSchemaError, query } from "../db.ts";
+import { isMissingSchemaError, pool, query } from "../db.ts";
 import { createEmailDelivery } from "./email-delivery.ts";
 import { ownsAnonymousSession } from "../session-proof.ts";
 import {
@@ -108,17 +108,36 @@ export const pgAccountStore: AccountStore = {
     );
   },
   async insertChallenge(challenge) {
-    await query(
-      "INSERT INTO auth_challenges (id, account_id, email, purpose, code_hash, expires_at, attempts) VALUES ($1, $2, $3, $4, $5, $6, $7)",
-      [challenge.id, challenge.accountId, challenge.email, challenge.purpose, challenge.codeHash, challenge.expiresAt, challenge.attempts]
-    );
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      try {
+        await client.query("SELECT pg_advisory_xact_lock(hashtext($1)::bigint)", [`${challenge.email}\n${challenge.purpose}`]);
+        await client.query(
+          `UPDATE auth_challenges
+              SET consumed_at = now()
+            WHERE email = $1 AND purpose = $2 AND consumed_at IS NULL`,
+          [challenge.email, challenge.purpose]
+        );
+        await client.query(
+          "INSERT INTO auth_challenges (id, account_id, email, purpose, code_hash, expires_at, attempts) VALUES ($1, $2, $3, $4, $5, $6, $7)",
+          [challenge.id, challenge.accountId, challenge.email, challenge.purpose, challenge.codeHash, challenge.expiresAt, challenge.attempts]
+        );
+        await client.query("COMMIT");
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      }
+    } finally {
+      client.release();
+    }
   },
   async latestChallenge(email, purpose) {
     const result = await query<{
       id: string;
       account_id: string | null;
       email: string;
-      purpose: "verify" | "reset";
+      purpose: "verify" | "reset" | "login";
       code_hash: string;
       expires_at: Date | string;
       attempts: number;
@@ -196,7 +215,7 @@ export const pgAccountStore: AccountStore = {
   },
 };
 
-async function deliver(email: string, purpose: "verify" | "reset", code: string) {
+async function deliver(email: string, purpose: "verify" | "reset" | "login", code: string) {
   await createEmailDelivery(process.env).send({ to: email, purpose, code });
 }
 

@@ -4,7 +4,7 @@ import net from "node:net";
 import path from "node:path";
 import tls from "node:tls";
 
-export type EmailPurpose = "verify" | "reset";
+export type EmailPurpose = "verify" | "reset" | "login";
 
 export type EmailMessage = {
   to: string;
@@ -202,7 +202,11 @@ export async function smtpExchange(socket: SmtpSocket, plan: Extract<EmailPlan, 
   await expect((line) => line.startsWith("250"), "rcpt");
   socket.write("DATA\r\n");
   await expect((line) => line.startsWith("354"));
-  const subject = message.subject ?? (message.purpose === "reset" ? "Код для нового пароля" : "Код подтверждения");
+  const subject = message.subject ?? (
+    message.purpose === "reset" ? "Код для нового пароля"
+      : message.purpose === "login" ? "Код для входа"
+        : "Код подтверждения"
+  );
   const text = (message.text ?? message.code).replace(/\r?\n/g, "\r\n").replace(/^\./gm, "..");
   socket.write(`Subject: ${headerValue(subject)}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${text}\r\n.\r\n`);
   await expect((line) => line.startsWith("250"));

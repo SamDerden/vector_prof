@@ -201,3 +201,283 @@ test("login attempts are limited and missing registration settings fail closed",
   assert.equal(deletion.status, 503);
   assert.equal((await deletion.json() as { error: string }).error, "deletion_disabled");
 });
+
+test("verification and reset codes expire, lock, and cannot be reused", async () => {
+  const clock = { now: new Date("2026-11-25T10:00:00.000Z") };
+  const sent: Array<{ purpose: "verify" | "reset"; code: string }> = [];
+  const api = createAccountApi({
+    store: createMemoryAccountStore(),
+    env,
+    now: () => clock.now,
+    deliver: async (_email, purpose, code) => {
+      sent.push({ purpose, code });
+    },
+  });
+  const email = "codes@example.test";
+  const hidden = async (response: Response) => {
+    const body = await response.json() as { error?: string; status?: string; code?: string };
+    assert.equal(body.code, undefined);
+    assert.equal(JSON.stringify(body).includes(sent.at(-1)?.code ?? "missing-code"), false);
+    return body;
+  };
+
+  const pending = await api.register(request("http://localhost/api/auth/register", {
+    body: { email, password: PASSWORD },
+  }));
+  assert.equal(pending.status, 202);
+  assert.equal((await hidden(pending)).status, "accepted");
+  const code = sent[0]?.code ?? "";
+  assert.equal(sent[0]?.purpose, "verify");
+  const verified = await api.verify(request("http://localhost/api/auth/verify", {
+    body: { email, code },
+  }));
+  assert.equal(verified.status, 200);
+  const reused = await api.verify(request("http://localhost/api/auth/verify", {
+    body: { email, code },
+  }));
+  assert.equal(reused.status, 400);
+  assert.equal((await hidden(reused)).error, "invalid_code");
+
+  const beforeLogin = sent.length;
+  const login = await api.login(request("http://localhost/api/auth/login", {
+    body: { email, password: PASSWORD },
+  }));
+  assert.equal(login.status, 200);
+  assert.equal(sent.length, beforeLogin);
+
+  const forgot = await api.forgot(request("http://localhost/api/auth/password/forgot", {
+    body: { email },
+  }));
+  assert.equal(forgot.status, 202);
+  assert.equal((await hidden(forgot)).status, "accepted");
+  assert.equal(sent.at(-1)?.purpose, "reset");
+  const resetCode = sent.at(-1)?.code ?? "";
+  const nextPassword = "replacement-horse-battery";
+  const reset = await api.reset(request("http://localhost/api/auth/password/reset", {
+    body: { email, code: resetCode, password: nextPassword },
+  }));
+  assert.equal(reset.status, 200);
+  const oldPassword = await api.login(request("http://localhost/api/auth/login", {
+    body: { email, password: PASSWORD },
+  }));
+  assert.equal(oldPassword.status, 401);
+  const newPassword = await api.login(request("http://localhost/api/auth/login", {
+    body: { email, password: nextPassword },
+  }));
+  assert.equal(newPassword.status, 200);
+  const resetAgain = await api.reset(request("http://localhost/api/auth/password/reset", {
+    body: { email, code: resetCode, password: "another-horse-battery" },
+  }));
+  assert.equal(resetAgain.status, 400);
+  assert.equal((await hidden(resetAgain)).error, "invalid_code");
+});
+
+test("a verification code locks after five misses, expires, and resend is limited", async () => {
+  const clock = { now: new Date("2026-11-25T12:00:00.000Z") };
+  const sent: Array<{ purpose: "verify" | "reset"; code: string }> = [];
+  const api = createAccountApi({
+    store: createMemoryAccountStore(),
+    env,
+    now: () => clock.now,
+    deliver: async (_email, purpose, code) => {
+      sent.push({ purpose, code });
+    },
+  });
+  const email = "limits@example.test";
+  const pending = await api.register(request("http://localhost/api/auth/register", {
+    body: { email, password: PASSWORD },
+  }));
+  assert.equal(pending.status, 202);
+  assert.equal(JSON.stringify(await pending.json()).includes(sent[0]?.code ?? "missing"), false);
+
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const wrong = await api.verify(request("http://localhost/api/auth/verify", {
+      body: { email, code: "000000" },
+    }));
+    assert.equal(wrong.status, 400);
+    assert.equal((await wrong.json() as { error: string }).error, "invalid_code");
+  }
+  const locked = await api.verify(request("http://localhost/api/auth/verify", {
+    body: { email, code: sent[0]?.code },
+  }));
+  assert.equal(locked.status, 429);
+  assert.equal((await locked.json() as { error: string }).error, "too_many_attempts");
+
+  const replaced = await api.register(request("http://localhost/api/auth/register", {
+    body: { email, password: PASSWORD },
+  }));
+  assert.equal(replaced.status, 202);
+  await replaced.json();
+  const freshCode = sent[1]?.code ?? "";
+  const previous = await api.verify(request("http://localhost/api/auth/verify", {
+    body: { email, code: sent[0]?.code },
+  }));
+  assert.equal(previous.status, 400);
+  assert.equal((await previous.json() as { error: string }).error, "invalid_code");
+  clock.now = new Date(clock.now.getTime() + 15 * 60 * 1000);
+  const expired = await api.verify(request("http://localhost/api/auth/verify", {
+    body: { email, code: freshCode },
+  }));
+  assert.equal(expired.status, 400);
+  assert.equal((await expired.json() as { error: string }).error, "code_expired");
+
+  const resent = await api.resend(request("http://localhost/api/auth/verification/resend", {
+    body: { email },
+  }));
+  assert.equal(resent.status, 202);
+  assert.equal(sent.at(-1)?.purpose, "verify");
+  const limited = await api.resend(request("http://localhost/api/auth/verification/resend", {
+    body: { email },
+  }));
+  assert.equal(limited.status, 429);
+  const current = await api.verify(request("http://localhost/api/auth/verify", {
+    body: { email, code: sent.at(-1)?.code },
+  }));
+  assert.equal(current.status, 200);
+  const superseded = await api.verify(request("http://localhost/api/auth/verify", {
+    body: { email, code: freshCode },
+  }));
+  assert.equal(superseded.status, 400);
+  assert.equal((await superseded.json() as { error: string }).error, "invalid_code");
+});
+
+test("an older code stays rejected after the newer code is used", async () => {
+  const clock = { now: new Date("2026-11-25T13:00:00.000Z") };
+  const sent: string[] = [];
+  const api = createAccountApi({
+    store: createMemoryAccountStore(),
+    env,
+    now: () => clock.now,
+    deliver: async (_email, _purpose, code) => {
+      sent.push(code);
+    },
+  });
+  const email = "replace@example.test";
+  assert.equal((await api.register(request("http://localhost/api/auth/register", {
+    body: { email, password: PASSWORD },
+  }))).status, 202);
+  assert.equal((await api.resend(request("http://localhost/api/auth/verification/resend", {
+    body: { email },
+  }))).status, 202);
+  const [codeA, codeB] = sent;
+  assert.notEqual(codeA, codeB);
+  const used = await api.verify(request("http://localhost/api/auth/verify", {
+    body: { email, code: codeB },
+  }));
+  assert.equal(used.status, 200);
+  const rejected = await api.verify(request("http://localhost/api/auth/verify", {
+    body: { email, code: codeA },
+  }));
+  assert.equal(rejected.status, 400);
+  assert.equal((await rejected.json() as { error: string }).error, "invalid_code");
+  assert.equal(JSON.stringify(await used.json()).includes(codeB ?? ""), false);
+});
+
+test("parallel code issues leave only the latest code valid", async () => {
+  const sent: string[] = [];
+  const api = createAccountApi({
+    store: createMemoryAccountStore(),
+    env,
+    now: () => new Date("2026-11-25T13:30:00.000Z"),
+    deliver: async (_email, _purpose, code) => {
+      sent.push(code);
+    },
+  });
+  const email = "race@example.test";
+  const responses = await Promise.all([
+    api.register(request("http://localhost/api/auth/register", { body: { email, password: PASSWORD } })),
+    api.register(request("http://localhost/api/auth/register", { body: { email, password: PASSWORD } })),
+  ]);
+  assert.deepEqual(responses.map((response) => response.status), [202, 202]);
+  assert.equal(sent.length, 2);
+  const first = await api.verify(request("http://localhost/api/auth/verify", {
+    body: { email, code: sent[0] },
+  }));
+  assert.equal(first.status, 400);
+  const second = await api.verify(request("http://localhost/api/auth/verify", {
+    body: { email, code: sent[1] },
+  }));
+  assert.equal(second.status, 200);
+});
+
+test("email login code opens a session without revealing whether the address exists", async () => {
+  const clock = { now: new Date("2026-11-25T14:00:00.000Z") };
+  const sent: Array<{ email: string; purpose: string; code: string }> = [];
+  const api = createAccountApi({
+    store: createMemoryAccountStore(),
+    env,
+    now: () => clock.now,
+    deliver: async (email, purpose, code) => {
+      sent.push({ email, purpose, code });
+    },
+  });
+  const email = "otp@example.test";
+  assert.equal((await api.register(request("http://localhost/api/auth/register", {
+    body: { email, password: PASSWORD },
+  }))).status, 202);
+  assert.equal((await api.verify(request("http://localhost/api/auth/verify", {
+    body: { email, code: sent[0]?.code },
+  }))).status, 200);
+
+  const missing = await api.requestLoginCode(request("http://localhost/api/auth/login/code", {
+    body: { email: "nobody@example.test" },
+  }));
+  assert.equal(missing.status, 202);
+  assert.equal((await missing.json() as { code?: string }).code, undefined);
+  assert.equal(sent.filter((item) => item.purpose === "login").length, 0);
+
+  const requested = await api.requestLoginCode(request("http://localhost/api/auth/login/code", {
+    body: { email },
+  }));
+  assert.equal(requested.status, 202);
+  assert.equal(JSON.stringify(await requested.json()).includes(sent.at(-1)?.code ?? "missing"), false);
+  const codeA = sent.at(-1)?.code ?? "";
+  assert.equal(sent.at(-1)?.purpose, "login");
+  clock.now = new Date(clock.now.getTime() + 61_000);
+  assert.equal((await api.requestLoginCode(request("http://localhost/api/auth/login/code", {
+    body: { email },
+  }))).status, 202);
+  const codeB = sent.at(-1)?.code ?? "";
+  assert.notEqual(codeA, codeB);
+
+  const wrong = await api.confirmLoginCode(request("http://localhost/api/auth/login/code/verify", {
+    body: { email, code: "000000" },
+  }));
+  assert.equal(wrong.status, 400);
+  assert.equal((await wrong.json() as { error: string }).error, "invalid_code");
+  const foreign = await api.confirmLoginCode(request("http://localhost/api/auth/login/code/verify", {
+    body: { email: "nobody@example.test", code: codeB },
+  }));
+  assert.equal(foreign.status, 400);
+  assert.equal((await foreign.json() as { error: string }).error, "invalid_code");
+  clock.now = new Date(clock.now.getTime() + 15 * 60 * 1000);
+  const expired = await api.confirmLoginCode(request("http://localhost/api/auth/login/code/verify", {
+    body: { email, code: codeB },
+  }));
+  assert.equal(expired.status, 400);
+  assert.equal((await expired.json() as { error: string }).error, "invalid_code");
+
+  clock.now = new Date(clock.now.getTime() + 61_000);
+  assert.equal((await api.requestLoginCode(request("http://localhost/api/auth/login/code", {
+    body: { email },
+  }))).status, 202);
+  const current = sent.at(-1)?.code ?? "";
+  const signedIn = await api.confirmLoginCode(request("http://localhost/api/auth/login/code/verify", {
+    body: { email, code: current },
+  }));
+  assert.equal(signedIn.status, 200);
+  assert.ok(signedIn.headers.getSetCookie().some((cookie) => cookie.startsWith("vector_auth_session=") && cookie.includes("HttpOnly")));
+  assert.equal(JSON.stringify(await signedIn.json()).includes(current), false);
+  const reused = await api.confirmLoginCode(request("http://localhost/api/auth/login/code/verify", {
+    body: { email, code: current },
+  }));
+  assert.equal(reused.status, 400);
+  const oldCode = await api.confirmLoginCode(request("http://localhost/api/auth/login/code/verify", {
+    body: { email, code: codeA },
+  }));
+  assert.equal(oldCode.status, 400);
+  const passwordLogin = await api.login(request("http://localhost/api/auth/login", {
+    body: { email, password: PASSWORD },
+  }));
+  assert.equal(passwordLogin.status, 200);
+});
