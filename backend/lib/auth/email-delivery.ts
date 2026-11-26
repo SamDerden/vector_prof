@@ -10,6 +10,8 @@ export type EmailMessage = {
   to: string;
   purpose: EmailPurpose;
   code: string;
+  subject?: string;
+  text?: string;
 };
 
 export type EmailPlan =
@@ -18,13 +20,17 @@ export type EmailPlan =
   | { transport: "file"; directory: string }
   | { transport: "unconfigured"; reason: string };
 
+export type DeliveryCategory = "auth" | "tls" | "connection" | "limit" | "recipient" | "protocol" | "unconfigured";
+
 export class DeliveryError extends Error {
   retryable: boolean;
+  category: DeliveryCategory;
 
-  constructor(retryable: boolean) {
+  constructor(retryable: boolean, category: DeliveryCategory = "protocol") {
     super("delivery_failed");
     this.name = "DeliveryError";
     this.retryable = retryable;
+    this.category = category;
   }
 }
 
@@ -120,21 +126,38 @@ type SmtpSocket = {
   close: () => void;
 };
 
+/** An SMTP reply is complete when its last line is `123 text`, not a `123-` continuation. */
+export function smtpReplyComplete(buffer: string) {
+  if (!buffer.endsWith("\n")) return false;
+  const lines = buffer.split(/\r?\n/).filter((line) => line.length > 0);
+  return /^\d{3} /.test(lines.at(-1) ?? "");
+}
+
+function networkCategory(error: unknown): DeliveryCategory {
+  const code = error && typeof error === "object" && "code" in error ? String((error as { code?: unknown }).code ?? "") : "";
+  if (code.includes("CERT") || code === "EPROTO" || code.startsWith("ERR_TLS")) return "tls";
+  return "connection";
+}
+
 async function readSmtp(socket: net.Socket | tls.TLSSocket) {
   let buffer = "";
   return await new Promise<string>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new DeliveryError(true, "connection"));
+    }, 20_000);
     const onData = (chunk: Buffer) => {
       buffer += chunk.toString("utf8");
-      if (buffer.endsWith("\n")) {
-        cleanup();
-        resolve(buffer);
-      }
+      if (!smtpReplyComplete(buffer)) return;
+      cleanup();
+      resolve(buffer);
     };
     const onError = (error: Error) => {
       cleanup();
-      reject(error);
+      reject(error instanceof DeliveryError ? error : new DeliveryError(true, networkCategory(error)));
     };
     const cleanup = () => {
+      clearTimeout(timer);
       socket.off("data", onData);
       socket.off("error", onError);
     };
@@ -143,33 +166,56 @@ async function readSmtp(socket: net.Socket | tls.TLSSocket) {
   });
 }
 
+function replyCategory(line: string, stage: "auth" | "rcpt" | "other"): DeliveryCategory {
+  const code = Number(line.slice(0, 3));
+  if (stage === "auth" || code === 530 || code === 534 || code === 535) return "auth";
+  if (stage === "rcpt" && code >= 500) return "recipient";
+  if (code === 421 || code === 450 || code === 451 || code === 452) return "limit";
+  return "protocol";
+}
+
+function headerValue(value: string) {
+  if (/^[\x20-\x7E]*$/.test(value)) return value;
+  return `=?UTF-8?B?${Buffer.from(value, "utf8").toString("base64")}?=`;
+}
+
 export async function smtpExchange(socket: SmtpSocket, plan: Extract<EmailPlan, { transport: "smtp" }>, message: EmailMessage) {
-  const expect = async (ok: (line: string) => boolean) => {
+  const expect = async (ok: (line: string) => boolean, stage: "auth" | "rcpt" | "other" = "other") => {
     const line = await socket.read();
-    if (!ok(line)) throw new DeliveryError(line.startsWith("4"));
+    if (!ok(line)) throw new DeliveryError(line.startsWith("4"), replyCategory(line, stage));
     return line;
   };
   await expect((line) => line.startsWith("220"));
   socket.write("EHLO vector.local\r\n");
   await expect((line) => line.startsWith("250"));
   if (plan.user) {
-    if (!plan.password) throw new DeliveryError(false);
+    if (!plan.password) throw new DeliveryError(false, "auth");
     const token = Buffer.from(`\u0000${plan.user}\u0000${plan.password}`).toString("base64");
     socket.write(`AUTH PLAIN ${token}\r\n`);
-    await expect((line) => line.startsWith("235"));
+    await expect((line) => line.startsWith("235"), "auth");
   } else if (plan.host !== "127.0.0.1") {
-    throw new DeliveryError(false);
+    throw new DeliveryError(false, "auth");
   }
   socket.write(`MAIL FROM:<${plan.from}>\r\n`);
   await expect((line) => line.startsWith("250"));
   socket.write(`RCPT TO:<${message.to}>\r\n`);
-  await expect((line) => line.startsWith("250"));
+  await expect((line) => line.startsWith("250"), "rcpt");
   socket.write("DATA\r\n");
   await expect((line) => line.startsWith("354"));
-  const subject = message.purpose === "reset" ? "Код для нового пароля" : "Код подтверждения";
-  socket.write(`Subject: ${subject}\r\n\r\n${message.code}\r\n.\r\n`);
+  const subject = message.subject ?? (message.purpose === "reset" ? "Код для нового пароля" : "Код подтверждения");
+  const text = (message.text ?? message.code).replace(/\r?\n/g, "\r\n").replace(/^\./gm, "..");
+  socket.write(`Subject: ${headerValue(subject)}\r\nContent-Type: text/plain; charset=utf-8\r\n\r\n${text}\r\n.\r\n`);
   await expect((line) => line.startsWith("250"));
   socket.write("QUIT\r\n");
+}
+
+export async function deliverSmtpOnce(plan: Extract<EmailPlan, { transport: "smtp" }>, message: EmailMessage) {
+  const socket = await openSmtp(plan);
+  try {
+    await smtpExchange(socket, plan, message);
+  } finally {
+    socket.close();
+  }
 }
 
 async function openSmtp(plan: Extract<EmailPlan, { transport: "smtp" }>): Promise<SmtpSocket> {
@@ -177,8 +223,17 @@ async function openSmtp(plan: Extract<EmailPlan, { transport: "smtp" }>): Promis
     ? tls.connect({ host: plan.host, port: plan.port, servername: plan.host })
     : net.connect({ host: plan.host, port: plan.port });
   await new Promise<void>((resolve, reject) => {
-    socket.once("connect", () => resolve());
-    socket.once("error", reject);
+    const ready = plan.secure ? "secureConnect" : "connect";
+    const onReady = () => {
+      socket.off("error", onError);
+      resolve();
+    };
+    const onError = (error: Error) => {
+      socket.off(ready, onReady);
+      reject(error instanceof DeliveryError ? error : new DeliveryError(true, networkCategory(error)));
+    };
+    socket.once(ready, onReady);
+    socket.once("error", onError);
   });
   return {
     write: (chunk) => socket.write(chunk),
