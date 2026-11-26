@@ -481,3 +481,82 @@ test("email login code opens a session without revealing whether the address exi
   }));
   assert.equal(passwordLogin.status, 200);
 });
+
+test("one code can be confirmed only once under concurrent requests", async () => {
+  const clock = { now: new Date("2026-11-25T16:00:00.000Z") };
+  const sent: Array<{ email: string; purpose: string; code: string }> = [];
+  const api = createAccountApi({
+    store: createMemoryAccountStore(),
+    env,
+    now: () => clock.now,
+    deliver: async (email, purpose, code) => {
+      sent.push({ email, purpose, code });
+    },
+  });
+  const sessionCookies = (response: Response) => response.headers.getSetCookie().filter((cookie) => cookie.startsWith("vector_auth_session="));
+
+  async function activate(email: string) {
+    assert.equal((await api.register(request("http://localhost/api/auth/register", {
+      body: { email, password: PASSWORD },
+    }))).status, 202);
+    assert.equal((await api.verify(request("http://localhost/api/auth/verify", {
+      body: { email, code: sent.at(-1)?.code },
+    }))).status, 200);
+  }
+
+  const verifyEmail = "concurrent-verify@example.test";
+  assert.equal((await api.register(request("http://localhost/api/auth/register", {
+    body: { email: verifyEmail, password: PASSWORD },
+  }))).status, 202);
+  const verifyCode = sent.at(-1)?.code ?? "";
+  const verifyResponses = await Promise.all(Array.from({ length: 20 }, () => api.verify(request("http://localhost/api/auth/verify", {
+    body: { email: verifyEmail, code: verifyCode },
+  }))));
+  assert.equal(verifyResponses.filter((response) => response.status === 200).length, 1);
+  for (const response of verifyResponses.filter((response) => response.status !== 200)) {
+    assert.equal(response.status, 400);
+    assert.equal((await response.json() as { error: string }).error, "invalid_code");
+    assert.equal(sessionCookies(response).length, 0);
+  }
+
+  const loginEmail = "concurrent-login@example.test";
+  await activate(loginEmail);
+  clock.now = new Date(clock.now.getTime() + 61_000);
+  assert.equal((await api.requestLoginCode(request("http://localhost/api/auth/login/code", {
+    body: { email: loginEmail },
+  }))).status, 202);
+  const loginCode = sent.at(-1)?.code ?? "";
+  const loginResponses = await Promise.all(Array.from({ length: 20 }, () => api.confirmLoginCode(request("http://localhost/api/auth/login/code/verify", {
+    body: { email: loginEmail, code: loginCode },
+  }))));
+  const signedIn = loginResponses.filter((response) => response.status === 200);
+  assert.equal(signedIn.length, 1);
+  assert.equal(sessionCookies(signedIn[0]).some((cookie) => cookie.includes("HttpOnly")), true);
+  for (const response of loginResponses.filter((response) => response.status !== 200)) {
+    assert.equal(response.status, 400);
+    assert.equal((await response.json() as { error: string }).error, "invalid_code");
+    assert.equal(sessionCookies(response).length, 0);
+  }
+
+  const resetEmail = "concurrent-reset@example.test";
+  await activate(resetEmail);
+  assert.equal((await api.forgot(request("http://localhost/api/auth/password/forgot", {
+    body: { email: resetEmail },
+  }))).status, 202);
+  const resetCode = sent.at(-1)?.code ?? "";
+  const replacement = "replacement-horse-battery";
+  const resetResponses = await Promise.all(Array.from({ length: 12 }, () => api.reset(request("http://localhost/api/auth/password/reset", {
+    body: { email: resetEmail, code: resetCode, password: replacement },
+  }))));
+  assert.equal(resetResponses.filter((response) => response.status === 200).length, 1);
+  for (const response of resetResponses.filter((response) => response.status !== 200)) {
+    assert.equal(response.status, 400);
+    assert.equal(sessionCookies(response).length, 0);
+  }
+  assert.equal((await api.login(request("http://localhost/api/auth/login", {
+    body: { email: resetEmail, password: PASSWORD },
+  }))).status, 401);
+  assert.equal((await api.login(request("http://localhost/api/auth/login", {
+    body: { email: resetEmail, password: replacement },
+  }))).status, 200);
+});

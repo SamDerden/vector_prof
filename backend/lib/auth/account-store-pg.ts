@@ -1,15 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { PoolClient } from "pg";
 
 import { isMissingSchemaError, pool, query } from "../db.ts";
 import { createEmailDelivery } from "./email-delivery.ts";
 import { ownsAnonymousSession } from "../session-proof.ts";
 import {
   createAccountApi,
+  sameSecret,
   type AccountRecord,
   type AccountStore,
   type AuthChallenge,
   type AuthSessionRecord,
   type OwnedNavigatorSession,
+  type SettleChallengeInput,
 } from "./account-api.ts";
 
 type AccountRow = {
@@ -84,6 +87,72 @@ function sessionFrom(row: SessionRow): OwnedNavigatorSession {
     hasRecommendation: row.has_recommendation,
     hasRoute: row.has_route,
   };
+}
+
+async function settleLockedChallenge(client: PoolClient, input: SettleChallengeInput) {
+  await client.query("SELECT pg_advisory_xact_lock(hashtext($1)::bigint)", [`${input.email}\n${input.purpose}`]);
+  const selected = await client.query<{ id: string; code_hash: string; expires_at: Date | string; attempts: number }>(
+    `SELECT id::text, code_hash, expires_at, attempts
+       FROM auth_challenges
+      WHERE email = $1 AND purpose = $2 AND consumed_at IS NULL
+      ORDER BY created_at DESC
+      LIMIT 1
+      FOR UPDATE`,
+    [input.email, input.purpose]
+  );
+  const row = selected.rows[0];
+  if (!row) return { outcome: "missing" as const };
+  if (new Date(row.expires_at).getTime() <= Date.parse(input.now)) return { outcome: "expired" as const };
+  if (row.attempts >= input.maxAttempts) return { outcome: "locked" as const };
+  if (!sameSecret(row.code_hash, input.codeHash)) {
+    await client.query(
+      "UPDATE auth_challenges SET attempts = attempts + 1 WHERE id = $1::uuid AND consumed_at IS NULL AND attempts < $2",
+      [row.id, input.maxAttempts]
+    );
+    return { outcome: "mismatch" as const };
+  }
+  const claimed = await client.query(
+    "UPDATE auth_challenges SET consumed_at = $2 WHERE id = $1::uuid AND consumed_at IS NULL RETURNING id",
+    [row.id, input.now]
+  );
+  if ((claimed.rowCount ?? 0) !== 1) return { outcome: "missing" as const };
+
+  const accountResult = await client.query<AccountRow>(
+    "SELECT id::text, email, password_hash, status, verified_at, created_at FROM accounts WHERE email = $1 FOR UPDATE",
+    [input.email]
+  );
+  const account = accountResult.rows[0] ?? null;
+  if (input.effect.type === "verify" && account) {
+    const updated = await client.query<AccountRow>(
+      `UPDATE accounts
+          SET status = 'active', verified_at = $2, updated_at = now()
+        WHERE id = $1
+      RETURNING id::text, email, password_hash, status, verified_at, created_at`,
+      [account.id, input.now]
+    );
+    return { outcome: "consumed" as const, account: accountFrom(updated.rows[0]) };
+  }
+  if (input.effect.type === "reset" && account) {
+    const updated = await client.query<AccountRow>(
+      `UPDATE accounts
+          SET password_hash = $2,
+              status = 'active',
+              verified_at = COALESCE(verified_at, $3),
+              updated_at = now()
+        WHERE id = $1
+      RETURNING id::text, email, password_hash, status, verified_at, created_at`,
+      [account.id, input.effect.passwordHash, input.now]
+    );
+    await client.query("DELETE FROM auth_sessions WHERE account_id = $1", [account.id]);
+    return { outcome: "consumed" as const, account: accountFrom(updated.rows[0]) };
+  }
+  if (input.effect.type === "login" && account?.status === "active") {
+    await client.query(
+      "INSERT INTO auth_sessions (id, account_id, token_hash, csrf_token, expires_at) VALUES ($1, $2, $3, $4, $5)",
+      [input.effect.session.id, account.id, input.effect.session.tokenHash, input.effect.session.csrfToken, input.effect.session.expiresAt]
+    );
+  }
+  return { outcome: "consumed" as const, account: account ? accountFrom(account) : null };
 }
 
 export const pgAccountStore: AccountStore = {
@@ -169,6 +238,22 @@ export const pgAccountStore: AccountStore = {
       "UPDATE auth_challenges SET attempts = $2, consumed_at = $3 WHERE id = $1",
       [challenge.id, challenge.attempts, challenge.consumedAt]
     );
+  },
+  async settleChallenge(input) {
+    const client = await pool.connect();
+    try {
+      await client.query("BEGIN");
+      try {
+        const settlement = await settleLockedChallenge(client, input);
+        await client.query("COMMIT");
+        return settlement;
+      } catch (error) {
+        await client.query("ROLLBACK");
+        throw error;
+      }
+    } finally {
+      client.release();
+    }
   },
   async insertAuthSession(session) {
     await query(
