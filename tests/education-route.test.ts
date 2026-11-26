@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { showsEducationPrograms, showsProfessions } from "../lib/age-view.ts";
 import {
+  professionKeyFor,
   ROUTE_CONFLICT_NOTICE,
   ROUTE_INVALID_ID_NOTICE,
   ROUTE_LEGACY_NOTICE,
@@ -335,4 +336,11 @@ test("catalog ids sync for every age band and an unknown id stays local", async 
   assert.equal(invalid.notice, ROUTE_INVALID_ID_NOTICE);
   assert.equal(calls.some((call) => call.init?.method === "PUT"), false);
   assert.equal(JSON.parse(browser.getItem(invalidKey) ?? "{}").saved[0], "Свободный текст маршрута");
+});
+
+test("freeze profession keys remain separate instead of collapsing to none", () => {
+ assert.equal(professionKeyFor("prof_001"),"prof_001");
+ assert.equal(professionKeyFor("prof_152"),"prof_152");
+ assert.notEqual(professionKeyFor("prof_001"),professionKeyFor("prof_152"));
+ assert.equal(professionKeyFor(null),"none");
 });

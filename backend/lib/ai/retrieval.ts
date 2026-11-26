@@ -1,5 +1,6 @@
 // lib/ai/retrieval.ts
 import fs from "node:fs/promises";
+import { validateFreezeEmbeddingIndex, type FreezeEmbeddingIndex } from "./freeze-embedding";
 import type { Dossier } from "./dossier";
 import ragConfig from "@/config/rag.config.json" with { type: "json" };
 import axios from "axios";
@@ -260,11 +261,15 @@ export async function retrieve(
   }
 
   // 1. Загружаем индекс
-  const indexRaw = await fs.readFile("data/catalog.index.json", "utf8");
-  const index = JSON.parse(indexRaw) as CatalogIndex;
+  let index: CatalogIndex;
+  try { index = JSON.parse(await fs.readFile("data/catalog.index.json", "utf8")); }
+  catch { index = {catalog_version:"",entries:[]}; }
+  if(!Array.isArray(index.entries)) index={catalog_version:"",entries:[]};
   const { loadRuntimeCatalog } = await import("../runtime-catalog.ts");
-  const catalog = loadRuntimeCatalog().catalog as NormalizedCatalogSnapshot;
-  const indexIsCurrent = index.catalog_version === catalog.version;
+  const runtimeCatalog = loadRuntimeCatalog();
+  const catalog = runtimeCatalog.catalog as NormalizedCatalogSnapshot;
+  const coverageValid = runtimeCatalog.origin !== "data_freeze_1" || validateFreezeEmbeddingIndex(index as unknown as FreezeEmbeddingIndex, runtimeCatalog.catalog).length === 0;
+  const indexIsCurrent = index.catalog_version === catalog.version && coverageValid;
   // The query and index MUST use the same embedding model.
   // `model` is the legacy field; `embedding_model` is the current one.
   const recorded = readRecordedEmbeddingModel(index);

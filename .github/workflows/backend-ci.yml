@@ -26,5 +26,7 @@ jobs:
         run: npm run typecheck
       - name: Backend session and API tests
         run: npm test
+      - name: PM API and database integration tests
+        run: npm run test:pm
       - name: Backend production build
         run: npm run build

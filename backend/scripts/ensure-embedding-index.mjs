@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import { validateFreezeEmbeddingIndex } from "../lib/ai/freeze-embedding.ts";
 
 import { assessEmbeddingIndex, embeddingStartupPlan } from "../lib/ai/index-contract.ts";
 import { loadRuntimeCatalog } from "../lib/runtime-catalog.ts";
@@ -26,6 +27,9 @@ let decision = assessEmbeddingIndex({
   chunkCount,
   configuredModel,
 });
+if (runtime.origin === "data_freeze_1" && index && validateFreezeEmbeddingIndex(index, catalog).length) {
+ decision={action:"refuse",reason:"Freeze index coverage/identity invalid"};
+}
 const plan = embeddingStartupPlan({
   origin: runtime.origin,
   decision,

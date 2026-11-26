@@ -29,6 +29,7 @@ function professionKeyFrom(request: NextRequest): string | null {
 }
 
 function publicRoute(route: {
+  route_id?: string;
   professionKey: string;
   completed: number[];
   saved: string[];
@@ -36,6 +37,7 @@ function publicRoute(route: {
   updatedAt: string;
 }) {
   return {
+    ...(route.route_id ? {route_id:route.route_id} : {}),
     professionKey: route.professionKey,
     completed: route.completed,
     saved: route.saved,

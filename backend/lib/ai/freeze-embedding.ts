@@ -93,17 +93,24 @@ export function buildFreezeIndex(input: {
 export function validateFreezeEmbeddingIndex(index: FreezeEmbeddingIndex, catalog: NormalizedCatalog) {
   const described = describeFreezeChunks(catalog);
   const problems: string[] = [];
+  if(!Array.isArray(index.entries) || index.entries.some(e=>!e || !e.metadata)) return ["invalid entries"];
   if (index.schema_version !== FREEZE_INDEX_SCHEMA) problems.push("schema");
   if (index.catalog_version !== catalog.version) problems.push("catalog version");
   if (index.profession_count !== described.professionCount) problems.push("profession count");
   if (index.chunk_count !== described.chunkCount || index.entries.length !== described.chunkCount) problems.push("chunk count");
   if (described.missingProfessionIds.length > 0) problems.push("missing profession chunks");
   if (index.vector_source === "provider" && index.dimensions !== FREEZE_EMBEDDING_DIMENSIONS) problems.push("dimensions");
+  if(index.vector_source !== "provider") problems.push("not provider vectors");
+  if(index.embedding_model !== "EmbeddingsGigaR") problems.push("embedding model");
+  if(index.catalog_origin !== "data_freeze_1") problems.push("catalog origin");
+  if(new Set(index.entries.map(e=>e.chunkId)).size !== index.entries.length) problems.push("duplicate chunks");
+  if(index.entries.some(e=> !Array.isArray(e.vector) || e.vector.length !== index.dimensions || e.vector.some(v=>!Number.isFinite(v)) || !e.vector.some(v=>v!==0))) problems.push("invalid vectors");
   if (index.vector_source === "mock") problems.push("mock vectors are not provider embeddings");
   const indexed = new Set(index.entries.flatMap((entry) => {
     const id = entry.metadata.profession_id;
     return entry.type === "profession_core" && typeof id === "string" ? [id] : [];
   }));
+  if(catalog.professions.some(p=>!indexed.has(p.profession_id))) problems.push("missing indexed professions");
   if ([...indexed].some((id) => !catalog.professions.some((profession) => profession.profession_id === id))) {
     problems.push("index contains a profession outside the catalog");
   }

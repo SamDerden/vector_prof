@@ -20,19 +20,25 @@
     "db:seed:mocks": "node scripts/seed-mock-students.mjs",
     "db:prepare": "npm run db:migrate && npm run db:seed && node scripts/probe-embedding-models.mjs",
     "db:sync": "npm run db:migrate && node scripts/sync-hybrid-catalog.mjs --apply",
-    "e2e:live": "node scripts/e2e-storage.mjs"
+    "e2e:live": "node scripts/e2e-storage.mjs",
+    "test:pm": "node --experimental-strip-types --import ./tests/register-app-alias.mjs --test tests/pm-features.integration.test.ts tests/runtime-catalog.test.ts tests/freeze-embedding.test.ts tests/freeze-semantic-coverage.test.ts",
+    "feedback:export": "node scripts/export-feedback.mjs",
+    "assistant:cleanup": "node scripts/cleanup-assistant.mjs"
   },
   "dependencies": {
+    "@pdf-lib/fontkit": "^1.1.1",
     "axios": "^1.21.0",
     "exceljs": "^4.4.0",
     "next": "^15.5.28",
+    "pdf-lib": "^1.17.1",
     "pg": "^8.16.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
-    "zod": "^4.1.11",
-    "tsx": "^4.20.6"
+    "tsx": "^4.20.6",
+    "zod": "^4.1.11"
   },
   "devDependencies": {
+    "@electric-sql/pglite": "^0.6.0",
     "@types/node": "^22.18.6",
     "@types/pg": "^8.15.5",
     "@types/react": "^19.1.13",

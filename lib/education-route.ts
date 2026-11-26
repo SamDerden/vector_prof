@@ -53,7 +53,7 @@ export function legacyRouteStorageKey(storageKey: string): string {
 }
 
 export function professionKeyFor(professionId: string | null): string {
-  return professionId && UUID.test(professionId) ? professionId.toLowerCase() : "none";
+  return professionId && (UUID.test(professionId) || /^prof_\d{3,4}$/.test(professionId)) ? professionId.toLowerCase() : "none";
 }
 
 export function acceptsSavedId(value: string): boolean {

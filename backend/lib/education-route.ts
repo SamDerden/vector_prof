@@ -3,7 +3,7 @@ import { z } from "zod";
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SAVED_ID = /^(?:program:prog_\d{3,4}|program:[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}|prog_\d{3,4}|trial_\d{3,4}|[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
 
-export const professionKeySchema = z.union([z.literal("none"), z.string().regex(UUID)]);
+export const professionKeySchema = z.union([z.literal("none"), z.string().regex(UUID), z.string().regex(/^prof_\d{3,4}$/)]);
 
 export const educationRouteSchema = z.object({
   professionKey: professionKeySchema,
@@ -21,7 +21,7 @@ export const educationRouteSchema = z.object({
 
 export type EducationRouteInput = z.infer<typeof educationRouteSchema>;
 
-export const READ_EDUCATION_ROUTE_SQL = `SELECT profession_key, completed, saved_ids, version, updated_at
+export const READ_EDUCATION_ROUTE_SQL = `SELECT id, profession_key, completed, saved_ids, version, updated_at
 FROM education_routes
 WHERE session_id = $1 AND profession_key = $2`;
 
@@ -40,7 +40,7 @@ updated AS (
   FROM locked
   WHERE route.id = locked.id
     AND locked.version = $5::int
-  RETURNING route.profession_key, route.completed, route.saved_ids, route.version, route.updated_at
+  RETURNING route.id, route.profession_key, route.completed, route.saved_ids, route.version, route.updated_at
 ),
 inserted AS (
   INSERT INTO education_routes (session_id, profession_key, completed, saved_ids)
@@ -48,7 +48,7 @@ inserted AS (
   WHERE NOT EXISTS (SELECT 1 FROM locked)
     AND $5::int IS NULL
   ON CONFLICT (session_id, profession_key) DO NOTHING
-  RETURNING profession_key, completed, saved_ids, version, updated_at
+  RETURNING id, profession_key, completed, saved_ids, version, updated_at
 )
 SELECT * FROM updated
 UNION ALL
@@ -60,6 +60,7 @@ type DbQuery = (
 ) => Promise<{ rowCount: number | null; rows: Array<Record<string, unknown>> }>;
 
 export type StoredEducationRoute = {
+  route_id?: string;
   professionKey: string;
   completed: number[];
   saved: string[];
@@ -85,10 +86,11 @@ export function mapEducationRoute(row: Record<string, unknown>): StoredEducation
     : typeof row.updated_at === "string"
       ? row.updated_at
       : "";
-  if ((!UUID.test(professionKey) && professionKey !== "none") || !Number.isInteger(version) || version < 1 || !updatedAt) {
+  if ((!UUID.test(professionKey) && !/^prof_\d{3,4}$/.test(professionKey) && professionKey !== "none") || !Number.isInteger(version) || version < 1 || !updatedAt) {
     return null;
   }
   return {
+    ...(typeof row.id === "string" ? {route_id:row.id} : {}),
     professionKey,
     completed: numberList(row.completed),
     saved: stringList(row.saved_ids),
