@@ -1,0 +1,212 @@
+[
+  {
+    "question": "Я плохо рисую, получится ли стать архитектором?",
+    "label": "relevant",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Нужен ли врачу английский?",
+    "label": "relevant",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "А сколько учиться?",
+    "label": "relevant",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Математика даётся тяжело — путь в программирование закрыт?",
+    "label": "relevant",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Можно стать инженером после колледжа?",
+    "label": "relevant",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Что делать, если родители против моей профессии?",
+    "label": "relevant",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Где школьнику посмотреть на работу в лаборатории?",
+    "label": "relevant",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Какие бывают специальности без общения с клиентами?",
+    "label": "relevant",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Скока лет учиться на ветеринара?",
+    "label": "relevant",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Мне нравится музыка, но я не хочу выступать. Какие есть варианты?",
+    "label": "relevant",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Какой проходной балл в этом году?",
+    "label": "relevant",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Чем агроном отличается от эколога?",
+    "label": "relevant",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Сколько муки положить в блины?",
+    "label": "out_of_domain",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Почему кот не ест корм?",
+    "label": "out_of_domain",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Расскажи, кто победил в матче вчера.",
+    "label": "out_of_domain",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Напиши код игры в крестики-нолики.",
+    "label": "out_of_domain",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Я выбрал профессию повара. Составь мне меню на неделю.",
+    "label": "out_of_domain",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Я буду писателем. Сделай за меня домашнее сочинение.",
+    "label": "out_of_domain",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Скачай мне фильм бесплатно.",
+    "label": "out_of_domain",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Как пройти босса в игре?",
+    "label": "out_of_domain",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Расшифруй мой гороскоп.",
+    "label": "out_of_domain",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Проверь орфографию в поздравлении бабушке.",
+    "label": "out_of_domain",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Это мне подходит?",
+    "label": "needs_clarification",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "А там нормально?",
+    "label": "needs_clarification",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "У меня другой вариант.",
+    "label": "needs_clarification",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Ну и как с этим быть?",
+    "label": "needs_clarification",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Что из них?",
+    "label": "needs_clarification",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "А этот?",
+    "label": "needs_clarification",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Не то.",
+    "label": "needs_clarification",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  },
+  {
+    "question": "Давай ещё.",
+    "label": "needs_clarification",
+    "review_status": "pending",
+    "history": [],
+    "source": "hand_authored_challenge_v1"
+  }
+]

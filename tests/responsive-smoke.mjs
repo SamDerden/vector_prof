@@ -6,7 +6,7 @@ const accountPath = process.env.TEST_ACCOUNT_PATH || '/account';
 const sizes = [320, 375, 390, 430, 768, 1024, 1280, 1440, 1920, 2560];
 const failures = [];
 await mkdir('test-results/responsive', { recursive: true });
-const browser = await chromium.launch({ headless: true });
+const browser = await chromium.launch({ headless: true, ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}) });
 async function measure(page) {
   return page.evaluate(() => ({
     viewport: document.documentElement.clientWidth,
@@ -32,7 +32,6 @@ for (const width of sizes) {
       }).slice(0, 12).map(el => ({ tag: el.tagName, className: String(el.className).slice(0, 90) }))
     }));
     if (dimensions.scroll > dimensions.viewport + 3) failures.push(width + ': horizontal scroll ' + JSON.stringify(dimensions));
-    if (errors.length) failures.push(width + ': JS errors ' + errors.join(' | '));
     const buttons = page.locator('button:visible');
     const count = await buttons.count();
     if (count === 0) failures.push(width + ': no visible buttons');
@@ -52,6 +51,7 @@ for (const width of sizes) {
     }
     const forms = await page.locator('.account-shell input:visible').count();
     if (forms === 0) failures.push(width + ': account has no visible form field');
+    if (errors.length) failures.push(width + ': JS errors ' + errors.join(' | '));
   } catch (error) {
     failures.push(width + ': ' + error.message);
   } finally {

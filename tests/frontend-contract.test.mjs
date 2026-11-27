@@ -25,3 +25,6 @@ test("own route retains grade-specific baseline diagnosis",()=>{
 test("same-origin API proxy remains configured",()=>{
  assert.match(config,/source: "\/api\/:path\*"/);
 });
+test("main route uses the shared freeze profession key parser",()=>{
+ assert.match(page,/const routeProfession=professionKeyFor\(selectedProfessionId\)/);
+});

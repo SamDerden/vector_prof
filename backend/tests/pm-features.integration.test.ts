@@ -64,6 +64,8 @@ test('PM features: migrations, owner isolation, retries, quotas, provider errors
   const route=await saveEducationRoute(q,session,routeInput);assert.equal(route.status,201);assert.ok(route.route?.route_id);
   const pdfResponse=await pdf(req(undefined,{method:'GET',url:`http://localhost/api/route/export/pdf?route_id=${route.route!.route_id}`}));assert.equal(pdfResponse.status,200);const bytes=await pdfResponse.arrayBuffer();assert.equal((await PDFDocument.load(bytes)).getPageCount(),1);
   const badRoute=randomUUID();assert.equal((await pdf(req(undefined,{method:'GET',url:`http://localhost/api/route/export/pdf?route_id=${badRoute}`}))).status,404);
+  assert.equal((await pdf(req(undefined,{method:'GET',url:`http://localhost/api/route/export/pdf?route_id=${route.route!.route_id}&version=999`}))).status,409);
+  assert.equal((await pdf(req(undefined,{method:'GET',url:`http://localhost/api/route/export/pdf?route_id=${route.route!.route_id}&version=abc`}))).status,400);
   const fb={request_id:randomUUID(),route_id:route.route!.route_id,clarity:5,recommendations:4,navigation:3,usefulness:5,comment:'Тестовый отзыв без персональных данных'};
   assert.equal((await feedback(req(fb))).status,201);assert.equal((await feedback(req(fb))).status,200);assert.equal((await q('SELECT * FROM feedback')).rowCount,1);
   assert.equal((await feedback(req({...fb,request_id:randomUUID(),clarity:6}))).status,422);

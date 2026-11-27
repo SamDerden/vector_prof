@@ -1,0 +1,411 @@
+{
+  "python": "3.12.14",
+  "sklearn": "1.8.0",
+  "training_seconds": 0.055055143000004136,
+  "model": "char TF-IDF (3,5) + balanced LogisticRegression",
+  "runtime_enabled": false,
+  "human_reviewed": 0,
+  "limitation": "Synthetic engineering baseline; cannot estimate quality on schoolchildren. Question-only baseline ignores conversation context.",
+  "validation": {
+    "rows": 60,
+    "metrics": {
+      "relevant": {
+        "precision": 0.5405405405405406,
+        "recall": 1.0,
+        "f1-score": 0.7017543859649122,
+        "support": 20.0
+      },
+      "out_of_domain": {
+        "precision": 1.0,
+        "recall": 0.5,
+        "f1-score": 0.6666666666666666,
+        "support": 20.0
+      },
+      "needs_clarification": {
+        "precision": 1.0,
+        "recall": 0.65,
+        "f1-score": 0.7878787878787878,
+        "support": 20.0
+      },
+      "accuracy": 0.7166666666666667,
+      "macro avg": {
+        "precision": 0.8468468468468467,
+        "recall": 0.7166666666666667,
+        "f1-score": 0.7187666135034556,
+        "support": 60.0
+      },
+      "weighted avg": {
+        "precision": 0.8468468468468467,
+        "recall": 0.7166666666666667,
+        "f1-score": 0.7187666135034555,
+        "support": 60.0
+      }
+    },
+    "labels": [
+      "relevant",
+      "out_of_domain",
+      "needs_clarification"
+    ],
+    "confusion_matrix": [
+      [
+        20,
+        0,
+        0
+      ],
+      [
+        10,
+        10,
+        0
+      ],
+      [
+        7,
+        0,
+        13
+      ]
+    ],
+    "relevant_false_rejection": 0.0,
+    "relevant_not_recognized": 0.0,
+    "latency_ms_p50": 0.2472285000010288,
+    "latency_ms_p95": 0.3455287500031544,
+    "errors": [
+      {
+        "question": "Посчитай стоимость продуктов для ужина.",
+        "expected": "out_of_domain",
+        "predicted": "relevant"
+      },
+      {
+        "question": "Подскажи, пожалуйста: Посчитай стоимость продуктов для ужина.",
+        "expected": "out_of_domain",
+        "predicted": "relevant"
+      },
+      {
+        "question": "Хочу уточнить: Посчитай стоимость продуктов для ужина.",
+        "expected": "out_of_domain",
+        "predicted": "relevant"
+      },
+      {
+        "question": "У меня вопрос: Посчитай стоимость продуктов для ужина.",
+        "expected": "out_of_domain",
+        "predicted": "relevant"
+      },
+      {
+        "question": "Мне интересно: Посчитай стоимость продуктов для ужина.",
+        "expected": "out_of_domain",
+        "predicted": "relevant"
+      },
+      {
+        "question": "Можешь объяснить: Посчитай стоимость продуктов для ужина.",
+        "expected": "out_of_domain",
+        "predicted": "relevant"
+      },
+      {
+        "question": "Помоги разобраться: Посчитай стоимость продуктов для ужина.",
+        "expected": "out_of_domain",
+        "predicted": "relevant"
+      },
+      {
+        "question": "Скажи, пожалуйста: Посчитай стоимость продуктов для ужина.",
+        "expected": "out_of_domain",
+        "predicted": "relevant"
+      },
+      {
+        "question": "Спрошу ещё: Посчитай стоимость продуктов для ужина.",
+        "expected": "out_of_domain",
+        "predicted": "relevant"
+      },
+      {
+        "question": "Не знаю, как разобраться: Посчитай стоимость продуктов для ужина.",
+        "expected": "out_of_domain",
+        "predicted": "relevant"
+      },
+      {
+        "question": "Так правильно?",
+        "expected": "needs_clarification",
+        "predicted": "relevant"
+      },
+      {
+        "question": "Хочу уточнить: Так правильно?",
+        "expected": "needs_clarification",
+        "predicted": "relevant"
+      },
+      {
+        "question": "У меня вопрос: Так правильно?",
+        "expected": "needs_clarification",
+        "predicted": "relevant"
+      },
+      {
+        "question": "Мне интересно: Так правильно?",
+        "expected": "needs_clarification",
+        "predicted": "relevant"
+      },
+      {
+        "question": "Помоги разобраться: Так правильно?",
+        "expected": "needs_clarification",
+        "predicted": "relevant"
+      },
+      {
+        "question": "Спрошу ещё: Так правильно?",
+        "expected": "needs_clarification",
+        "predicted": "relevant"
+      },
+      {
+        "question": "Не знаю, как разобраться: Так правильно?",
+        "expected": "needs_clarification",
+        "predicted": "relevant"
+      }
+    ]
+  },
+  "test": {
+    "rows": 60,
+    "metrics": {
+      "relevant": {
+        "precision": 0.9523809523809523,
+        "recall": 1.0,
+        "f1-score": 0.975609756097561,
+        "support": 20.0
+      },
+      "out_of_domain": {
+        "precision": 0.75,
+        "recall": 0.15,
+        "f1-score": 0.25,
+        "support": 20.0
+      },
+      "needs_clarification": {
+        "precision": 0.5142857142857142,
+        "recall": 0.9,
+        "f1-score": 0.6545454545454545,
+        "support": 20.0
+      },
+      "accuracy": 0.6833333333333333,
+      "macro avg": {
+        "precision": 0.7388888888888889,
+        "recall": 0.6833333333333332,
+        "f1-score": 0.6267184035476718,
+        "support": 60.0
+      },
+      "weighted avg": {
+        "precision": 0.7388888888888889,
+        "recall": 0.6833333333333333,
+        "f1-score": 0.6267184035476718,
+        "support": 60.0
+      }
+    },
+    "labels": [
+      "relevant",
+      "out_of_domain",
+      "needs_clarification"
+    ],
+    "confusion_matrix": [
+      [
+        20,
+        0,
+        0
+      ],
+      [
+        0,
+        3,
+        17
+      ],
+      [
+        1,
+        1,
+        18
+      ]
+    ],
+    "relevant_false_rejection": 0.0,
+    "relevant_not_recognized": 0.0,
+    "latency_ms_p50": 0.26781849999224505,
+    "latency_ms_p95": 0.3849252999970076,
+    "errors": [
+      {
+        "question": "Подскажи, пожалуйста: Помоги пройти уровень в компьютерной игре.",
+        "expected": "out_of_domain",
+        "predicted": "needs_clarification"
+      },
+      {
+        "question": "Хочу уточнить: Помоги пройти уровень в компьютерной игре.",
+        "expected": "out_of_domain",
+        "predicted": "needs_clarification"
+      },
+      {
+        "question": "У меня вопрос: Помоги пройти уровень в компьютерной игре.",
+        "expected": "out_of_domain",
+        "predicted": "needs_clarification"
+      },
+      {
+        "question": "Мне интересно: Помоги пройти уровень в компьютерной игре.",
+        "expected": "out_of_domain",
+        "predicted": "needs_clarification"
+      },
+      {
+        "question": "Можешь объяснить: Помоги пройти уровень в компьютерной игре.",
+        "expected": "out_of_domain",
+        "predicted": "needs_clarification"
+      },
+      {
+        "question": "Помоги разобраться: Помоги пройти уровень в компьютерной игре.",
+        "expected": "out_of_domain",
+        "predicted": "needs_clarification"
+      },
+      {
+        "question": "Скажи, пожалуйста: Помоги пройти уровень в компьютерной игре.",
+        "expected": "out_of_domain",
+        "predicted": "needs_clarification"
+      },
+      {
+        "question": "Спрошу ещё: Помоги пройти уровень в компьютерной игре.",
+        "expected": "out_of_domain",
+        "predicted": "needs_clarification"
+      },
+      {
+        "question": "Не знаю, как разобраться: Помоги пройти уровень в компьютерной игре.",
+        "expected": "out_of_domain",
+        "predicted": "needs_clarification"
+      },
+      {
+        "question": "Подскажи, пожалуйста: Перескажи сюжет последней серии сериала.",
+        "expected": "out_of_domain",
+        "predicted": "needs_clarification"
+      },
+      {
+        "question": "Хочу уточнить: Перескажи сюжет последней серии сериала.",
+        "expected": "out_of_domain",
+        "predicted": "needs_clarification"
+      },
+      {
+        "question": "У меня вопрос: Перескажи сюжет последней серии сериала.",
+        "expected": "out_of_domain",
+        "predicted": "needs_clarification"
+      },
+      {
+        "question": "Мне интересно: Перескажи сюжет последней серии сериала.",
+        "expected": "out_of_domain",
+        "predicted": "needs_clarification"
+      },
+      {
+        "question": "Можешь объяснить: Перескажи сюжет последней серии сериала.",
+        "expected": "out_of_domain",
+        "predicted": "needs_clarification"
+      },
+      {
+        "question": "Помоги разобраться: Перескажи сюжет последней серии сериала.",
+        "expected": "out_of_domain",
+        "predicted": "needs_clarification"
+      },
+      {
+        "question": "Скажи, пожалуйста: Перескажи сюжет последней серии сериала.",
+        "expected": "out_of_domain",
+        "predicted": "needs_clarification"
+      },
+      {
+        "question": "Не знаю, как разобраться: Перескажи сюжет последней серии сериала.",
+        "expected": "out_of_domain",
+        "predicted": "needs_clarification"
+      },
+      {
+        "question": "Я сомневаюсь.",
+        "expected": "needs_clarification",
+        "predicted": "out_of_domain"
+      },
+      {
+        "question": "С чего мне начать?",
+        "expected": "needs_clarification",
+        "predicted": "relevant"
+      }
+    ]
+  },
+  "challenge": {
+    "rows": 30,
+    "metrics": {
+      "relevant": {
+        "precision": 0.7333333333333333,
+        "recall": 0.9166666666666666,
+        "f1-score": 0.8148148148148148,
+        "support": 12.0
+      },
+      "out_of_domain": {
+        "precision": 0.8,
+        "recall": 0.8,
+        "f1-score": 0.8,
+        "support": 10.0
+      },
+      "needs_clarification": {
+        "precision": 1.0,
+        "recall": 0.625,
+        "f1-score": 0.7692307692307693,
+        "support": 8.0
+      },
+      "accuracy": 0.8,
+      "macro avg": {
+        "precision": 0.8444444444444444,
+        "recall": 0.7805555555555556,
+        "f1-score": 0.7946818613485279,
+        "support": 30.0
+      },
+      "weighted avg": {
+        "precision": 0.8266666666666665,
+        "recall": 0.8,
+        "f1-score": 0.7977207977207977,
+        "support": 30.0
+      }
+    },
+    "labels": [
+      "relevant",
+      "out_of_domain",
+      "needs_clarification"
+    ],
+    "confusion_matrix": [
+      [
+        11,
+        1,
+        0
+      ],
+      [
+        2,
+        8,
+        0
+      ],
+      [
+        2,
+        1,
+        5
+      ]
+    ],
+    "relevant_false_rejection": 0.08333333333333333,
+    "relevant_not_recognized": 0.08333333333333333,
+    "latency_ms_p50": 0.24754800000437172,
+    "latency_ms_p95": 0.3433659500075237,
+    "errors": [
+      {
+        "question": "Нужен ли врачу английский?",
+        "expected": "relevant",
+        "predicted": "out_of_domain"
+      },
+      {
+        "question": "Сколько муки положить в блины?",
+        "expected": "out_of_domain",
+        "predicted": "relevant"
+      },
+      {
+        "question": "Как пройти босса в игре?",
+        "expected": "out_of_domain",
+        "predicted": "relevant"
+      },
+      {
+        "question": "Это мне подходит?",
+        "expected": "needs_clarification",
+        "predicted": "relevant"
+      },
+      {
+        "question": "А там нормально?",
+        "expected": "needs_clarification",
+        "predicted": "relevant"
+      },
+      {
+        "question": "Давай ещё.",
+        "expected": "needs_clarification",
+        "predicted": "out_of_domain"
+      }
+    ]
+  }
+}

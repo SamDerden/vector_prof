@@ -13,13 +13,17 @@ export async function GET(request:NextRequest){
   const auth=await requireAccount(request);if('error' in auth)return auth.error;
   const id=z.string().uuid().safeParse(request.nextUrl.searchParams.get('route_id'));
   if(!id.success)return jsonError('invalid_route_id',400);
+  const requestedVersion=request.nextUrl.searchParams.get('version');
+  if(requestedVersion !== null && !/^[1-9]\d*$/.test(requestedVersion))return jsonError('invalid_route_version',400);
   await consumeLimit(query,`pdf:${auth.accountId}`,60,5);
   const result=await query(`SELECT r.*,p.school_grade,p.municipality,
    pr.title AS profession_title FROM education_routes r JOIN sessions s ON s.id=r.session_id
    LEFT JOIN profiles p ON p.session_id=s.id LEFT JOIN professions pr ON pr.id::text=r.profession_key
    WHERE r.id=$1 AND s.account_id=$2`,[id.data,auth.accountId]);
   if(!result.rowCount)return jsonError('route_not_found',404);
-  const row=result.rows[0];const catalog=loadRuntimeCatalog().catalog;
+  const row=result.rows[0];
+  if(requestedVersion !== null && Number(requestedVersion)!==row.version)return jsonError('route_version_conflict',409);
+  const catalog=loadRuntimeCatalog().catalog;
   const lines:PdfLine[]=[{text:'Вектор — индивидуальный маршрут'},{text:`Версия маршрута: ${row.version}. Сохранён: ${new Date(row.updated_at).toISOString()}`},
    {text:`Класс: ${row.school_grade ?? 'не указан'}. Муниципалитет: ${row.municipality ?? 'не указан'}`},
    {text:`Профессия: ${row.profession_title ?? catalog.professions.find(p=>p.profession_id===row.profession_key)?.name ?? row.profession_key}`},

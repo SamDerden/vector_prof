@@ -19,6 +19,8 @@ jobs:
         run: node --experimental-strip-types --import ./tests/register-relative-ts.mjs --test tests/account-cabinet.test.mjs
       - name: Typecheck
         run: npm run typecheck
+      - name: Route persistence and PDF version checks
+        run: node --experimental-strip-types --import ./tests/register-relative-ts.mjs --test tests/education-route.test.ts tests/route-actions.test.ts tests/frontend-contract.test.mjs
       - name: Production build
         run: npm run build
         env:
