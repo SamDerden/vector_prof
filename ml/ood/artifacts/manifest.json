@@ -1,0 +1,14 @@
+{
+  "dataset_sha256": "c87e7fc46cb1e71e0316b0b6f25cc8022dedfa5c883a9f7ac133fd082af1c672",
+  "model_sha256": "f098aa1e0ac9a94c35239f00c4cbd47716267fee6353957eeef4118f822dd046",
+  "labels": [
+    "needs_clarification",
+    "out_of_domain",
+    "relevant"
+  ],
+  "training_rows": 380,
+  "human_reviewed": 0,
+  "production_ready": false,
+  "input": "question only",
+  "warning": "Load only this trusted project-generated joblib file; pickle-compatible formats can execute code."
+}
