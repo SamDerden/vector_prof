@@ -14,8 +14,10 @@ import {
   humanizeAccountError,
   isEmail,
   linkSession,
+  confirmLoginCode,
   login,
   logout,
+  requestLoginCode,
   normalizeEmail,
   register,
   resetPassword,
@@ -114,6 +116,20 @@ test("anonymous auth endpoints never require CSRF and never send a session id", 
   } finally {
     restore();
   }
+});
+
+test("login code requests send only the email and never a session header", async () => {
+  const requested = recorder({ status: 202, body: { status: "accepted" } });
+  await requestLoginCode({ email: " Student@Example.Test " }, { fetchImpl: requested.fetchImpl });
+  assert.equal(requested.calls[0].url, "/api/auth/login/code");
+  assert.equal(requested.calls[0].headers[CSRF_HEADER], undefined);
+  assert.equal(requested.calls[0].headers[SESSION_HEADER], undefined);
+  assert.deepEqual(JSON.parse(requested.calls[0].init.body), { email: "student@example.test" });
+  const confirmed = recorder({ status: 200, body: { user: { email: "student@example.test", phone: null, status: "active", verifiedAt: null } } });
+  await confirmLoginCode({ email: "student@example.test", code: "123456" }, { fetchImpl: confirmed.fetchImpl });
+  assert.equal(confirmed.calls[0].url, "/api/auth/login/code/verify");
+  assert.deepEqual(JSON.parse(confirmed.calls[0].init.body), { email: "student@example.test", code: "123456" });
+  assert.equal(JSON.stringify(confirmed.calls[0].init.body).includes("password"), false);
 });
 
 test("register sends exactly one identifier: email, never both channels", async () => {
@@ -312,6 +328,10 @@ test("cabinet lives at /account and is reachable from the main navigation", () =
   assert.match(CONTRACT, /"\/api\/auth\/verify"/);
   assert.match(CONTRACT, /"\/api\/auth\/verification\/resend"/);
   assert.match(CONTRACT, /"\/api\/auth\/login"/);
+  assert.match(CONTRACT, /"\/api\/auth\/login\/code"/);
+  assert.match(CONTRACT, /"\/api\/auth\/login\/code\/verify"/);
+  assert.match(FORMS, /requestLoginCode\(\{ email \}\)/);
+  assert.match(FORMS, /confirmLoginCode\(\{ email, code: loginCode \}\)/);
   assert.match(CONTRACT, /"\/api\/auth\/logout"/);
   assert.match(CONTRACT, /"\/api\/auth\/me"/);
   assert.match(CONTRACT, /"\/api\/auth\/password\/forgot"/);

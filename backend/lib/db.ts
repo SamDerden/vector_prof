@@ -11,11 +11,13 @@ function createPool() {
 
   const requestedMax = Number(process.env.DATABASE_POOL_MAX ?? 30);
   const max = Number.isInteger(requestedMax) && requestedMax >= 1 && requestedMax <= 30 ? requestedMax : 30;
+  const requestedTimeout = Number(process.env.DATABASE_CONNECT_TIMEOUT_MS ?? 5_000);
+  const connectionTimeoutMillis = Number.isInteger(requestedTimeout) && requestedTimeout >= 1_000 && requestedTimeout <= 30_000 ? requestedTimeout : 5_000;
   return new Pool({
     connectionString: process.env.DATABASE_URL,
     max,
     idleTimeoutMillis: 30_000,
-    connectionTimeoutMillis: 5_000,
+    connectionTimeoutMillis,
     ssl:
       process.env.PGSSL === "true"
         ? {
