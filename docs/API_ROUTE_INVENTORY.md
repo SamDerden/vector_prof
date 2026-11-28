@@ -1,6 +1,6 @@
 # Инвентарь backend API
 
-Дата сверки: 28.11.2026. Источник — `origin/main` `992bdf741ab431764f00e60a06b120e26cc718bb`.
+Дата сверки: 28.11.2026. Источник — `origin/main` `68ee74cd79388f7d06b27b5e51627ec852fb6a9c`.
 
 Это список маршрутов, у которых в этом коммите есть handler. Поле или HTTP-метод, которого нет в handler, здесь не указан как существующий. Исторические документы не заменяют этот список: [backend/docs/API.md](../backend/docs/API.md), [backend/docs/FRONTEND_API_ADDITIONS.md](../backend/docs/FRONTEND_API_ADDITIONS.md), [docs/release-2026-11-26/API.md](release-2026-11-26/API.md).
 
@@ -33,7 +33,7 @@
 
 ## Маршруты main
 
-35 пар метод+путь. Успешный статус — в колонке STATUS. Ошибки — в разделах ниже.
+Число пар метод+путь считается по экспортам handlers и проверяется `scripts/check-api-route-inventory.mjs`. На этом коммите проверка находит 37 пар. Успешный статус — в колонке STATUS. Ошибки — в разделах ниже.
 
 | METHOD | PATH | AUTH | REQUEST | RESPONSE | STATUS | SOURCE FILE | FRONTEND USAGE |
 | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -60,6 +60,8 @@
 | POST | `/api/auth/verify` | нет | JSON: `email`, `code` | `{ status: verified }` | 200 | `backend/app/api/auth/verify/route.ts` | `lib/auth-api.ts` `verify` |
 | POST | `/api/auth/verification/resend` | нет | JSON: `email` | `{ status: accepted }` | 202 | `backend/app/api/auth/verification/resend/route.ts` | `lib/auth-api.ts` |
 | POST | `/api/auth/login` | нет | JSON: `email`, `password` | `{ user }` и cookie аккаунта | 200 | `backend/app/api/auth/login/route.ts` | `lib/auth-api.ts` `login` |
+| POST | `/api/auth/login/code` | нет | JSON: `email` | `{ status: accepted }` | 202 | `backend/app/api/auth/login/code/route.ts` | `lib/auth-api.ts` `requestLoginCode` |
+| POST | `/api/auth/login/code/verify` | нет | JSON: `email`, `code` из 6 цифр | `{ user }` и cookie аккаунта | 200 | `backend/app/api/auth/login/code/verify/route.ts` | `lib/auth-api.ts` `confirmLoginCode` |
 | POST | `/api/auth/logout` | cookie аккаунта + CSRF | JSON `{}` | `{ status: ok }`, cookie очищаются | 200 | `backend/app/api/auth/logout/route.ts` | `lib/auth-api.ts`, `e2e/account.spec.ts` |
 | GET | `/api/auth/me` | cookie аккаунта, если есть | — | `{ authenticated, user }` | 200 | `backend/app/api/auth/me/route.ts` | `lib/auth-api.ts` `fetchMe` |
 | POST | `/api/auth/password/forgot` | нет | JSON: `email` | `{ status: accepted }` | 202 | `backend/app/api/auth/password/forgot/route.ts` | `lib/auth-api.ts` |
@@ -102,6 +104,8 @@
 | `POST /api/auth/verify` | нет | нет | нет | да | нет | нет |
 | `POST /api/auth/verification/resend` | нет | нет | нет | да | нет | нет |
 | `POST /api/auth/login` | нет | нет | нет | да | нет | нет |
+| `POST /api/auth/login/code` | нет | нет | нет | да | нет | нет |
+| `POST /api/auth/login/code/verify` | нет | нет | нет | да | нет | нет |
 | `POST /api/auth/logout` | нет | нет | да | да | нет | нет |
 | `GET /api/auth/me` | нет | нет | нет | да, если cookie есть | нет | нет |
 | `POST /api/auth/password/forgot` | нет | нет | нет | да | нет | нет |
@@ -154,6 +158,22 @@
 
 Плюс cookie `vector_auth_session` и `vector_csrf`. Неверный пароль, неподтверждённый аккаунт и неизвестный email: `401 invalid_credentials`. Лимит: 5 попыток за 900 секунд, `429`.
 
+`POST /api/auth/login/code`:
+
+```json
+{ "email": "student@example.com" }
+```
+
+`202` `{ "status": "accepted" }` и для неизвестного, неактивного или уже подтверждённого адреса. Письмо уходит только активному аккаунту. `400 validation` для неверного email. Лимиты: 1 запрос в 60 секунд (`details.retryAfterMs` 60000) и 5 в час (`details.retryAfterMs` 3600000), `429 rate_limited`. Код в JSON не возвращается. CSRF нет.
+
+`POST /api/auth/login/code/verify`:
+
+```json
+{ "email": "student@example.com", "code": "123456" }
+```
+
+`200` `{ "user": { ... } }` и те же cookie, что у входа по паролю. Неизвестный адрес, неверный, просроченный, уже использованный код и исчерпанные попытки отвечают одинаково: `400 invalid_code`. CSRF нет. Назначение кода — `login`, миграция `014_login_codes.sql`. Подробности: [backend/docs/LOGIN_CODE_API.md](../backend/docs/LOGIN_CODE_API.md).
+
 `POST /api/auth/logout` требует CSRF. `200` `{ "status": "ok" }`.
 
 `GET /api/auth/me`: `200` `{ "authenticated": true, "user": { ... } }` или `{ "authenticated": false, "user": null }`.
@@ -184,8 +204,6 @@
 `DELETE /api/account`: `{ "password" }`, CSRF, флаг удаления. `200` `{ "status": "deleted" }`. `401 invalid_credentials`, `403 csrf_token_invalid`, `503 deletion_disabled`.
 
 `POST /api/auth/link-session`: CSRF и `X-Session-ID`. Proof cookie должен доказывать, что анонимная сессия создана в этом браузере. `200` `{ "status": "linked", "session": { ... } }`. `403` с русским текстом, если proof не подходит. `404 validation`, если сессии навигатора нет. `409` с русским текстом, если сессия демо или уже у другого аккаунта.
-
-На main нет `POST /api/auth/login/code` и `POST /api/auth/login/code/verify`.
 
 ### Трек, диагностика, уточнения, рефлексия
 
@@ -344,21 +362,6 @@
 
 `GET /api/profession-assistant/conversations` — до 50 диалогов. С `conversation_id` — до 100 сообщений. `DELETE` с этим query и CSRF: `204`. Без id у DELETE: `400 conversation_id_required`.
 
-## Маршруты только в PR #16
-
-PR #16 открыт, в `main` не влит: https://github.com/SamDerden/vector_prof/pull/16, head `5f44881053353af6082388f50e2c0d59ccf0ff42`. Эти два handler есть только в `feature/be-01-02-login-codes-smtp`. На `main` их нет, и этот документ не считает их доступными.
-
-| METHOD | PATH | AUTH | REQUEST | RESPONSE | STATUS | SOURCE FILE |
-| --- | --- | --- | --- | --- | --- | --- |
-| POST | `/api/auth/login/code` | нет | JSON: `email` | `{ status: accepted }` | 202 | `backend/app/api/auth/login/code/route.ts` |
-| POST | `/api/auth/login/code/verify` | нет | JSON: `email`, `code` из 6 цифр | `{ user }` и cookie аккаунта | 200 | `backend/app/api/auth/login/code/verify/route.ts` |
-
-`POST /api/auth/login/code` отвечает `202` и для неизвестного email. Письмо уходит только активному аккаунту. `400 validation`. Лимиты: 1 запрос в 60 секунд и 5 в час, `429 rate_limited`.
-
-`POST /api/auth/login/code/verify` при любой неудаче, включая просрочку и лимит попыток, отвечает `400 invalid_code`. Успех ставит те же cookie, что вход по паролю. CSRF на этих двух POST нет. PostgreSQL нужен. Отдельного feature flag у handler нет; миграция `014_login_codes.sql` в этом PR расширяет `purpose` до `login`.
-
-Клиент этих путей лежит в той же ветке: `lib/auth-api.ts`, функции запроса и подтверждения кода. В `main` этих функций нет.
-
 ## Запланированные маршруты, которых в коде нет
 
 Отдельного HTTP-маршрута самостоятельных проб (`self_guided_steps`) в `backend/app/api` нет. Шаги лежат в данных freeze и в ответ `GET /api/trials` или `GET /api/professions/:id` не подставляются.
@@ -367,9 +370,9 @@ PR #16 открыт, в `main` не влит: https://github.com/SamDerden/vecto
 
 ## Frontend: отсутствующие и устаревшие вызовы
 
-Сверены `app/`, `lib/` и `backend/app/page.tsx` коммита `992bdf7`.
+Сверены `app/`, `lib/` и `backend/app/page.tsx` коммита `68ee74c`.
 
-Вызовов несуществующего пути на `main` нет. `lib/auth-api.ts` на `main` не вызывает вход по коду.
+Вызовов несуществующего пути на `main` нет. `lib/auth-api.ts` вызывает `POST /api/auth/login/code` и `POST /api/auth/login/code/verify`.
 
 Расхождения клиента и handler, код не менялся:
 
@@ -392,7 +395,7 @@ PR #16 открыт, в `main` не влит: https://github.com/SamDerden/vecto
 
 ## Расхождения документации и реализации
 
-Старые файлы оставлены. Ниже то, что в них больше не совпадает с `992bdf7`.
+Старые файлы оставлены. Ниже то, что в них больше не совпадает с `68ee74c`.
 
 - [backend/docs/API.md](../backend/docs/API.md) описывает путь ученика и пишет, что личного кабинета нет. На `main` есть `/api/auth/*`, `/api/account`, отзыв, PDF, мастерская и `GET/PUT /api/education-route`.
 - Там же у вопроса диагностики указано поле `question_id`. В анкете поле называется `id`. В теле submit по-прежнему `questionId`.
@@ -414,4 +417,4 @@ PR #16 открыт, в `main` не влит: https://github.com/SamDerden/vecto
 - маршрут, отзыв, PDF, мастерская: `backend/tests/pm-features.integration.test.ts`, `tests/education-route.test.ts`;
 - демо-ученики: `tests/frontend-contract.test.mjs`.
 
-Вход по email-коду этими тестами `main` не покрыт: маршрута в этом коммите нет. Тесты кода живут в PR #16.
+Вход по email-коду покрыт `backend/tests/account-auth.test.ts`, `backend/tests/account-auth-pg.integration.test.ts` и `tests/account-cabinet.test.mjs`.

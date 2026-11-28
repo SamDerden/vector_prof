@@ -51,8 +51,4 @@ if (missingInDoc.length || missingInSource.length) {
   if (missingInSource.length) console.error("table rows without a handler:\n" + missingInSource.join("\n"));
   process.exit(1);
 }
-if (mainSection.includes("/api/auth/login/code")) {
-  console.error("login-code routes are listed as available on main");
-  process.exit(1);
-}
 console.log(`api route inventory matches ${fromSource.length} handlers`);
