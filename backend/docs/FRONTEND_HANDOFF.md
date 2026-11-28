@@ -1,6 +1,6 @@
 # Контракт для frontend (Дима)
 
-Источник полей — `docs/API.md` и текущие маршруты. Ниже только то, что backend уже делает.
+Актуальный список маршрутов — [docs/API_ROUTE_INVENTORY.md](../../docs/API_ROUTE_INVENTORY.md). Ниже сохранён снимок полей пути ученика из `docs/API.md`.
 
 База: `http://localhost:3000`. JSON, UTF-8. Ошибка: `{"error":"..."}`, иногда с `details`.
 

@@ -84,10 +84,10 @@
 | GET | `/api/recommendations` | Сохранённые рекомендации |
 | GET | `/api/professions`, `/api/professions/[id]` | Профессии |
 | GET | `/api/trials` | Профессиональные пробы |
-| GET / POST | `/api/education-route` | Образовательный маршрут |
+| GET / PUT | `/api/education-route` | Образовательный маршрут |
 | GET / POST | `/api/reflection` | Рефлексия |
 
-Полные схемы и особенности запросов: [backend/docs/API.md](backend/docs/API.md). Идентификатор `X-Session-ID` сам по себе **не является авторизацией**; защита данных сессии зависит также от механизма подтверждения владения.
+Актуальный список методов и путей: [docs/API_ROUTE_INVENTORY.md](docs/API_ROUTE_INVENTORY.md). Исторические схемы пути ученика: [backend/docs/API.md](backend/docs/API.md). Идентификатор `X-Session-ID` сам по себе **не является авторизацией**; защита данных сессии зависит также от механизма подтверждения владения.
 
 ## Локальный запуск
 
@@ -172,7 +172,8 @@ Frontend и backend развёртываются как **разные серв�
 ## Документация
 
 - [Backend README](backend/README.md) — базовые команды и описание backend; отдельные исторические разделы могут устаревать.
-- [API](backend/docs/API.md) — контракт API.
+- [Инвентарь API](docs/API_ROUTE_INVENTORY.md) — фактические маршруты текущего `main`.
+- [API](backend/docs/API.md) — исторический контракт пути ученика.
 - [Релизные изменения от 11.11.2026](backend/docs/SBER_RELEASE_2026-11-11.md) — контекст исправлений безопасности, очереди и возрастных сценариев.
 - [Документация развёртывания](backend/docs/DEPLOY.md).
 - [Исторический статус MVP](backend/docs/MVP_STATUS.md) — **архивный снимок**, не текущий статус production.

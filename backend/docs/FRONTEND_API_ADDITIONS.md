@@ -1,5 +1,7 @@
 # Дополнение API для frontend
 
+Актуальный список маршрутов: [docs/API_ROUTE_INVENTORY.md](../../docs/API_ROUTE_INVENTORY.md). Ниже — снимок дополнений от 11.11.2026, файл не удаляется.
+
 Дата сверки: 11.11.2026. Ветка `fix/backend-integration-stability`. Это добавления к `API.md`. Старые поля и статусы сохранены.
 
 Проверка ownership включается в `NODE_ENV=production` и при `SESSION_PROOF_ENFORCED=true`. Это поведение `origin/main`. Вне production и без флага клиент по-прежнему передаёт только `X-Session-ID`. Cookie proof тогда не требуется.
