@@ -29,11 +29,13 @@ export type AccountRecord = {
   createdAt: string;
 };
 
+export type CodePurpose = "verify" | "reset" | "login";
+
 export type AuthChallenge = {
   id: string;
   accountId: string | null;
   email: string;
-  purpose: "verify" | "reset";
+  purpose: CodePurpose;
   codeHash: string;
   expiresAt: string;
   attempts: number;
@@ -63,14 +65,33 @@ export type OwnedNavigatorSession = {
   hasRoute: boolean;
 };
 
+export type ChallengeEffect =
+  | { type: "verify" }
+  | { type: "login"; session: AuthSessionRecord }
+  | { type: "reset"; passwordHash: string };
+
+export type ChallengeSettlement =
+  | { outcome: "consumed"; account: AccountRecord | null }
+  | { outcome: "missing" | "expired" | "locked" | "mismatch" };
+
+export type SettleChallengeInput = {
+  email: string;
+  purpose: CodePurpose;
+  codeHash: string;
+  now: string;
+  maxAttempts: number;
+  effect: ChallengeEffect;
+};
+
 export interface AccountStore {
   findAccountByEmail(email: string): Promise<AccountRecord | null>;
   findAccountById(id: string): Promise<AccountRecord | null>;
   insertAccount(account: AccountRecord): Promise<void>;
   saveAccount(account: AccountRecord): Promise<void>;
   insertChallenge(challenge: AuthChallenge): Promise<void>;
-  latestChallenge(email: string, purpose: "verify" | "reset"): Promise<AuthChallenge | null>;
+  latestChallenge(email: string, purpose: CodePurpose): Promise<AuthChallenge | null>;
   saveChallenge(challenge: AuthChallenge): Promise<void>;
+  settleChallenge(input: SettleChallengeInput): Promise<ChallengeSettlement>;
   insertAuthSession(session: AuthSessionRecord): Promise<void>;
   findAuthSession(tokenHash: string): Promise<AuthSessionRecord | null>;
   deleteAuthSession(id: string): Promise<void>;
@@ -102,6 +123,11 @@ export function createMemoryAccountStore(): AccountStore & {
       accounts.set(account.id, { ...account });
     },
     async insertChallenge(challenge) {
+      for (const existing of challenges) {
+        if (existing.email === challenge.email && existing.purpose === challenge.purpose && !existing.consumedAt) {
+          existing.consumedAt = challenge.expiresAt;
+        }
+      }
       challenges.push({ ...challenge });
     },
     async latestChallenge(email, purpose) {
@@ -110,6 +136,34 @@ export function createMemoryAccountStore(): AccountStore & {
     async saveChallenge(challenge) {
       const index = challenges.findIndex((item) => item.id === challenge.id);
       if (index >= 0) challenges[index] = { ...challenge };
+    },
+    async settleChallenge(input) {
+      const challenge = [...challenges].reverse().find((item) => item.email === input.email && item.purpose === input.purpose && !item.consumedAt);
+      if (!challenge) return { outcome: "missing" };
+      if (Date.parse(challenge.expiresAt) <= Date.parse(input.now)) return { outcome: "expired" };
+      if (challenge.attempts >= input.maxAttempts) return { outcome: "locked" };
+      if (!sameSecret(challenge.codeHash, input.codeHash)) {
+        challenge.attempts += 1;
+        return { outcome: "mismatch" };
+      }
+      challenge.consumedAt = input.now;
+      const account = [...accounts.values()].find((item) => item.email === input.email) ?? null;
+      if (input.effect.type === "verify" && account) {
+        account.status = "active";
+        account.verifiedAt = input.now;
+      }
+      if (input.effect.type === "reset" && account) {
+        account.passwordHash = input.effect.passwordHash;
+        account.status = "active";
+        account.verifiedAt = account.verifiedAt ?? input.now;
+        for (let index = sessions.length - 1; index >= 0; index -= 1) {
+          if (sessions[index].accountId === account.id) sessions.splice(index, 1);
+        }
+      }
+      if (input.effect.type === "login" && account?.status === "active") {
+        sessions.push({ ...input.effect.session, accountId: account.id });
+      }
+      return { outcome: "consumed", account: account ? { ...account } : null };
     },
     async insertAuthSession(session) {
       sessions.push({ ...session });
@@ -155,7 +209,7 @@ type Deps = {
   store: AccountStore;
   env?: NodeJS.ProcessEnv;
   now?: () => Date;
-  deliver?: (email: string, purpose: "verify" | "reset", code: string) => Promise<void>;
+  deliver?: (email: string, purpose: CodePurpose, code: string) => Promise<void>;
   verifyOwnership?: (sessionId: string, proof: string | undefined) => boolean;
 };
 
@@ -187,6 +241,12 @@ export async function verifyPassword(password: string, stored: string | null) {
 
 function hashCode(code: string, env: NodeJS.ProcessEnv) {
   return createHash("sha256").update(`${pepper(env)}:${code}`).digest("base64url");
+}
+
+export function sameSecret(left: string, right: string) {
+  const received = Buffer.from(left);
+  const expected = Buffer.from(right);
+  return received.length === expected.length && timingSafeEqual(received, expected);
 }
 
 function hashToken(token: string) {
@@ -235,6 +295,15 @@ async function readBody(request: NextRequest) {
   }
 }
 
+function challengeRejection(settled: ChallengeSettlement, uniform: boolean) {
+  if (settled.outcome === "consumed") {
+    return settled.account ? null : NextResponse.json({ error: "invalid_code" }, { status: 400 });
+  }
+  if (!uniform && settled.outcome === "expired") return NextResponse.json({ error: "code_expired" }, { status: 400 });
+  if (!uniform && settled.outcome === "locked") return NextResponse.json({ error: "too_many_attempts" }, { status: 429 });
+  return NextResponse.json({ error: "invalid_code" }, { status: 400 });
+}
+
 export function createAccountApi(deps: Deps) {
   const env: NodeJS.ProcessEnv = deps.env ?? process.env;
   const now = deps.now ?? (() => new Date());
@@ -250,7 +319,7 @@ export function createAccountApi(deps: Deps) {
     return true;
   }
 
-  async function issueCode(account: AccountRecord | null, email: string, purpose: "verify" | "reset") {
+  async function issueCode(account: AccountRecord | null, email: string, purpose: CodePurpose) {
     const code = String(randomInt(0, 1_000_000)).padStart(6, "0");
     await deps.store.insertChallenge({
       id: crypto.randomUUID(),
@@ -344,25 +413,16 @@ export function createAccountApi(deps: Deps) {
       const body = await readBody(request);
       const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
       const code = typeof body.code === "string" ? body.code.trim() : "";
-      const challenge = await deps.store.latestChallenge(email, "verify");
-      if (!challenge || challenge.consumedAt) return NextResponse.json({ error: "invalid_code" }, { status: 400 });
-      if (Date.parse(challenge.expiresAt) <= now().getTime()) return NextResponse.json({ error: "code_expired" }, { status: 400 });
-      if (challenge.attempts >= MAX_CODE_ATTEMPTS) return NextResponse.json({ error: "too_many_attempts" }, { status: 429 });
-      const received = Buffer.from(hashCode(code, env));
-      const expected = Buffer.from(challenge.codeHash);
-      const matches = received.length === expected.length && timingSafeEqual(received, expected);
-      challenge.attempts += 1;
-      if (!matches) {
-        await deps.store.saveChallenge(challenge);
-        return NextResponse.json({ error: "invalid_code" }, { status: 400 });
-      }
-      challenge.consumedAt = now().toISOString();
-      await deps.store.saveChallenge(challenge);
-      const account = await deps.store.findAccountByEmail(email);
-      if (!account) return NextResponse.json({ error: "invalid_code" }, { status: 400 });
-      account.status = "active";
-      account.verifiedAt = now().toISOString();
-      await deps.store.saveAccount(account);
+      const settled = await deps.store.settleChallenge({
+        email,
+        purpose: "verify",
+        codeHash: hashCode(code, env),
+        now: now().toISOString(),
+        maxAttempts: MAX_CODE_ATTEMPTS,
+        effect: { type: "verify" },
+      });
+      const rejected = challengeRejection(settled, false);
+      if (rejected) return rejected;
       return NextResponse.json({ status: "verified" });
     },
 
@@ -387,6 +447,57 @@ export function createAccountApi(deps: Deps) {
       const passwordOk = Boolean(account && account.status === "active" && await verifyPassword(typeof body.password === "string" ? body.password : "", account.passwordHash));
       if (!account || !passwordOk) return NextResponse.json({ error: "invalid_credentials" }, { status: 401 });
       return openSession(account);
+    },
+
+    async requestLoginCode(request: NextRequest) {
+      const body = await readBody(request);
+      const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+      if (!validEmail(email)) return NextResponse.json({ error: "validation" }, { status: 400 });
+      if (!allow(`login-code-burst:${email}`, 60, 1)) {
+        return NextResponse.json({ error: "rate_limited", details: { retryAfterMs: 60_000 } }, { status: 429 });
+      }
+      if (!allow(`login-code:${email}`, 3600, 5)) {
+        return NextResponse.json({ error: "rate_limited", details: { retryAfterMs: 3_600_000 } }, { status: 429 });
+      }
+      const account = await deps.store.findAccountByEmail(email);
+      if (account?.status === "active") await issueCode(account, email, "login");
+      return NextResponse.json({ status: "accepted" }, { status: 202 });
+    },
+
+    async confirmLoginCode(request: NextRequest) {
+      const body = await readBody(request);
+      const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
+      const code = typeof body.code === "string" ? body.code.trim() : "";
+      const codeHash = hashCode(/^\d{6}$/.test(code) ? code : "000000", env);
+      if (!validEmail(email)) {
+        sameSecret(codeHash, hashCode("000000", env));
+        return NextResponse.json({ error: "invalid_code" }, { status: 400 });
+      }
+      const token = randomBytes(32).toString("base64url");
+      const csrf = randomBytes(32).toString("base64url");
+      const settled = await deps.store.settleChallenge({
+        email,
+        purpose: "login",
+        codeHash,
+        now: now().toISOString(),
+        maxAttempts: MAX_CODE_ATTEMPTS,
+        effect: {
+          type: "login",
+          session: {
+            id: crypto.randomUUID(),
+            accountId: "",
+            tokenHash: hashToken(token),
+            csrfToken: csrf,
+            expiresAt: new Date(now().getTime() + SESSION_MS).toISOString(),
+          },
+        },
+      });
+      if (settled.outcome !== "consumed" || settled.account?.status !== "active") {
+        return NextResponse.json({ error: "invalid_code" }, { status: 400 });
+      }
+      const response = NextResponse.json({ user: userView(settled.account) });
+      setAuthCookies(response, token, csrf, env);
+      return response;
     },
 
     async logout(request: NextRequest) {
@@ -422,26 +533,16 @@ export function createAccountApi(deps: Deps) {
       const email = typeof body.email === "string" ? body.email.trim().toLowerCase() : "";
       const code = typeof body.code === "string" ? body.code.trim() : "";
       if (!validPassword(body.password)) return NextResponse.json({ error: "validation" }, { status: 400 });
-      const challenge = await deps.store.latestChallenge(email, "reset");
-      if (!challenge) return NextResponse.json({ error: "invalid_code" }, { status: 400 });
-      if (Date.parse(challenge.expiresAt) <= now().getTime()) return NextResponse.json({ error: "code_expired" }, { status: 400 });
-      if (challenge.attempts >= MAX_CODE_ATTEMPTS) return NextResponse.json({ error: "too_many_attempts" }, { status: 429 });
-      const received = Buffer.from(hashCode(code, env));
-      const expected = Buffer.from(challenge.codeHash);
-      if (!(received.length === expected.length && timingSafeEqual(received, expected))) {
-        challenge.attempts += 1;
-        await deps.store.saveChallenge(challenge);
-        return NextResponse.json({ error: "invalid_code" }, { status: 400 });
-      }
-      challenge.consumedAt = now().toISOString();
-      await deps.store.saveChallenge(challenge);
-      const account = await deps.store.findAccountByEmail(email);
-      if (!account) return NextResponse.json({ error: "invalid_code" }, { status: 400 });
-      account.passwordHash = await hashPassword(body.password);
-      account.status = "active";
-      account.verifiedAt = account.verifiedAt ?? now().toISOString();
-      await deps.store.saveAccount(account);
-      await deps.store.deleteAuthSessionsForAccount(account.id);
+      const settled = await deps.store.settleChallenge({
+        email,
+        purpose: "reset",
+        codeHash: hashCode(code, env),
+        now: now().toISOString(),
+        maxAttempts: MAX_CODE_ATTEMPTS,
+        effect: { type: "reset", passwordHash: await hashPassword(body.password) },
+      });
+      const rejected = challengeRejection(settled, false);
+      if (rejected) return rejected;
       return NextResponse.json({ status: "reset" });
     },
 

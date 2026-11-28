@@ -3,9 +3,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
+import { fileURLToPath } from "node:url";
 
 import { createAccountApi, createMemoryAccountStore } from "../lib/auth/account-api.ts";
-import { createEmailDelivery, emailTransportPlan, productionDeliveryReady, smtpExchange, type EmailMessage } from "../lib/auth/email-delivery.ts";
+import { spawnSync } from "node:child_process";
+
+import { createEmailDelivery, DeliveryError, emailTransportPlan, productionDeliveryReady, smtpExchange, smtpReplyComplete, type EmailMessage } from "../lib/auth/email-delivery.ts";
 import { NextRequest } from "next/server";
 
 const message: EmailMessage = { to: "student@example.test", purpose: "verify", code: "123456" };
@@ -95,4 +98,61 @@ test("smtp dialogue sends the code without logging credentials", async () => {
   assert.match(transcript, /AUTH PLAIN /);
   assert.match(transcript, new RegExp(message.code));
   assert.equal(transcript.includes("local-only-secret"), false);
+});
+
+test("smtp reply is complete only on the final line", () => {
+  assert.equal(smtpReplyComplete("250-smtp.mail.ru\r\n"), false);
+  assert.equal(smtpReplyComplete("250-smtp.mail.ru\r\n250 AUTH PLAIN\r\n"), true);
+  assert.equal(smtpReplyComplete("220 ready\r\n"), true);
+});
+
+test("smtp classifies auth and recipient failures without exposing the password", async () => {
+  const plan = {
+    transport: "smtp" as const,
+    host: "smtp.mail.ru",
+    port: 465,
+    from: "vector@example.test",
+    user: "mailer",
+    password: "local-only-secret",
+    secure: true,
+  };
+  await assert.rejects(
+    () => smtpExchange({ write: () => undefined, read: async () => "535 denied\r\n", close: () => undefined }, plan, message),
+    (error: unknown) => error instanceof DeliveryError && error.category === "auth" && !String(error).includes("local-only-secret")
+  );
+  const replies = ["220 local\r\n", "250 hello\r\n", "235 ok\r\n", "250 from\r\n", "550 unknown\r\n"];
+  await assert.rejects(
+    () => smtpExchange({
+      write: () => undefined,
+      read: async () => replies.shift() ?? "",
+      close: () => undefined,
+    }, plan, message),
+    (error: unknown) => error instanceof DeliveryError && error.category === "recipient"
+  );
+});
+
+test("smtp test command does not connect or print the password", () => {
+  const directory = fs.mkdtempSync(path.join(os.tmpdir(), "vector-smtp-"));
+  const envFile = path.join(directory, "smtp.env");
+  fs.writeFileSync(envFile, [
+    "AUTH_EMAIL_TRANSPORT=smtp",
+    "SMTP_HOST=smtp.mail.ru",
+    "SMTP_PORT=465",
+    "SMTP_SECURE=true",
+    "SMTP_USER=vector@mail.ru",
+    "SMTP_FROM=vector@mail.ru",
+    "SMTP_PASSWORD=super-secret-value",
+    "SMTP_TEST_TO=student@example.test",
+    "",
+  ].join("\n"));
+  const result = spawnSync(process.execPath, [
+    "--experimental-strip-types",
+    "scripts/smtp-mailru-test.mjs",
+    "--env-file",
+    envFile,
+  ], { cwd: path.resolve(path.dirname(fileURLToPath(import.meta.url)), ".."), encoding: "utf8" });
+  const output = `${result.stdout ?? ""}\n${result.stderr ?? ""}`;
+  assert.equal(result.status, 0);
+  assert.match(output, /не отправлялось/);
+  assert.equal(output.includes("super-secret-value"), false);
 });

@@ -7,8 +7,10 @@ import {
   forgotPassword,
   isAccountApiError,
   isEmail,
+  confirmLoginCode,
   login,
   register,
+  requestLoginCode,
   resendVerification,
   resetPassword,
   validatePassword,
@@ -94,6 +96,8 @@ export function AuthPanel({
   const [showPassword, setShowPassword] = useState(false);
   const [forgotStep, setForgotStep] = useState<"request" | "reset">("request");
   const [resetCode, setResetCode] = useState("");
+  const [loginCode, setLoginCode] = useState("");
+  const [loginByCode, setLoginByCode] = useState(false);
 
   useEffect(() => {
     setMode(initialMode);
@@ -112,6 +116,8 @@ export function AuthPanel({
     setBlocked(false);
     setPassword("");
     setResetCode("");
+    setLoginCode("");
+    setLoginByCode(false);
     setForgotStep("request");
   }
 
@@ -142,6 +148,44 @@ export function AuthPanel({
       if (apiError?.code === "registration_not_configured" || apiError?.code === "feature_disabled") {
         setBlocked(true);
       }
+      setError(accountErrorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitLoginCodeRequest() {
+    if (busy) return;
+    setError("");
+    setNotice("");
+    if (!isEmail(email)) {
+      setError("Введи email в формате name@example.ru.");
+      return;
+    }
+    setBusy(true);
+    try {
+      await requestLoginCode({ email });
+      setLoginByCode(true);
+      setNotice("Если для этого адреса включён вход, код уже отправлен. Проверь входящие и папку «Спам».");
+    } catch (caught) {
+      setError(accountErrorMessage(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function submitLoginCode() {
+    if (busy) return;
+    setError("");
+    if (!isEmail(email) || !loginCode.trim()) {
+      setError("Введи email и код из письма.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const result = await confirmLoginCode({ email, code: loginCode });
+      onAuthenticated(result.user);
+    } catch (caught) {
       setError(accountErrorMessage(caught));
     } finally {
       setBusy(false);
@@ -334,7 +378,28 @@ export function AuthPanel({
               <button type="button" className="account-link-quiet" onClick={() => switchMode("forgot")}>
                 Забыл пароль
               </button>
+              <button type="button" className="account-link-quiet" onClick={submitLoginCodeRequest} disabled={busy}>
+                Получить код на почту
+              </button>
             </div>
+            {loginByCode && (
+              <div className="account-auth-actions">
+                <Field
+                  id="account-login-code"
+                  label="Код из письма"
+                  type="text"
+                  value={loginCode}
+                  onChange={setLoginCode}
+                  autoComplete="one-time-code"
+                  placeholder="6 цифр"
+                  inputMode="numeric"
+                  disabled={busy}
+                />
+                <button type="button" className="pill primary" onClick={submitLoginCode} disabled={busy}>
+                  {busy ? "Проверяем…" : "Войти по коду"}
+                </button>
+              </div>
+            )}
           </form>
         )}
 

@@ -314,6 +314,24 @@ export async function login(input: { email: string; password: string }, options:
   });
 }
 
+/** Asks for a one-time login code. The response does not say whether the email exists. */
+export async function requestLoginCode(input: { email: string }, options: { fetchImpl?: typeof fetch } = {}) {
+  return call<{ status?: string }>("/api/auth/login/code", {
+    method: "POST",
+    body: { email: normalizeEmail(input.email) },
+    fetchImpl: options.fetchImpl,
+  });
+}
+
+/** Confirms a one-time login code and receives the same session cookie as password login. */
+export async function confirmLoginCode(input: { email: string; code: string }, options: { fetchImpl?: typeof fetch } = {}) {
+  return call<{ user: AccountUser }>("/api/auth/login/code/verify", {
+    method: "POST",
+    body: { email: normalizeEmail(input.email), code: input.code.trim() },
+    fetchImpl: options.fetchImpl,
+  });
+}
+
 export async function logout(options: { fetchImpl?: typeof fetch } = {}) {
   return call<{ status?: string }>("/api/auth/logout", { method: "POST", body: {}, csrf: true, fetchImpl: options.fetchImpl });
 }
