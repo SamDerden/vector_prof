@@ -12,7 +12,7 @@
 - Каталог профессий/программ/проб из Excel (seed) + overlay `data/navigator_full_graph.json`.
 - Вопросы диагностики и агента читаются из JSON (`bilet_questions_master.json`, `agent_clarification.json`) — это справочник, не ответы ученика.
 - GigaChat: ограниченный каталог в промпте, нормализация ответа модели, без выдуманных контактов и RIASEC-баллов школьника.
-- Документы: `docs/API.md`, `docs/FRONTEND_HANDOFF.md`, `docs/DEPLOY.md`, `docs/MVP_STATUS.md`.
+- Документы: актуальный список маршрутов — `docs/API_ROUTE_INVENTORY.md` в корне репозитория. Исторические: `docs/API.md`, `docs/FRONTEND_HANDOFF.md`, `docs/DEPLOY.md`, `docs/MVP_STATUS.md`.
 
 ## Где что лежит в PostgreSQL
 

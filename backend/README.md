@@ -9,7 +9,7 @@ Backend MVP для школьной профориентации (Екатери
 - PostgreSQL 16 (Docker Compose), аддитивные миграции, seed каталога из Excel.
 - Сессии, диагностика, уточняющие ответы, рекомендации, рефлексия.
 - JSON-данные: `data/agent_clarification.json` (6 вопросов), `data/bilet_questions_master.json`, `data/mock_students_data.json` (15 учеников), `data/navigator_full_graph.json` (overlay графа).
-- API (см. `docs/API.md`):
+- Актуальный список маршрутов: `../docs/API_ROUTE_INVENTORY.md`. Исторический путь ученика (`docs/API.md`):
   - `GET /api/health`
   - `POST /api/track/select`
   - `GET /api/session`
